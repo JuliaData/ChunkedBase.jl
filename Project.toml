@@ -1,0 +1,16 @@
+name = "ChunkedBase"
+uuid = "a380dd43-0ebf-4429-88d6-6f06ea920732"
+authors = ["Tomáš Drvoštěp <tomas.drvostep@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+CodecZlibNG = "642d12eb-acb5-4437-bcfc-a25e07ad685c"
+Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
+NewlineLexers = "f391c746-b838-4748-bbb5-9885c75b726e"
+SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
