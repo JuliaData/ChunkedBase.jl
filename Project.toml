@@ -9,6 +9,12 @@ Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 NewlineLexers = "f391c746-b838-4748-bbb5-9885c75b726e"
 SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
 
+[compat]
+CodecZlibNG = "0.1"
+NewlineLexers = "0.1"
+SentinelArrays = "1.4"
+julia = "1.6"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
