@@ -23,7 +23,7 @@ _comment_to_bytes(x::AbstractString) = Vector{UInt8}(x)
 _comment_to_bytes(x::Char) = _comment_to_bytes(ncodeunits(x) > 1 ? string(x) : UInt8(x))
 _comment_to_bytes(x::UInt8) = [x]
 _comment_to_bytes(x::Vector{UInt8}) = x
-_comment_to_bytes(x::Nothing) = nothing
+_comment_to_bytes(::Nothing) = nothing
 struct ChunkingContext
     id::Int
     counter::TaskCounter
@@ -34,6 +34,9 @@ struct ChunkingContext
     comment::Union{Nothing,Vector{UInt8}}
 end
 function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}})
+    (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
+    (0 < nworkers < 256) || throw(ArgumentError("`nworkers` argument must be larger than 0 and smaller than 256."))
+    (0 <= limit <= typemax(Int)) || throw(ArgumentError("`limit` argument must be positive and smaller than 9_223_372_036_854_775_808."))
     return ChunkingContext(
         1,
         TaskCounter(),
