@@ -25,8 +25,9 @@ mutable struct PayloadOrderer{B<:AbstractResultBuffer, C<:AbstractParsingContext
     expected_row::Int
     waititng_room::Vector{ParsedPayload{B,C}}
 end
-PayloadOrderer(queue::Channel) = PayloadOrderer(queue, 1, sizehint!(ParsedPayload[], Threads.nthreads()))
-PayloadOrderer() = PayloadOrderer(Channel{ParsedPayload}(Inf), 1, sizehint!(ParsedPayload[], Threads.nthreads()))
+PayloadOrderer(queue::Channel{ParsedPayload{B,C}}) where {B,C} = PayloadOrderer{B,C}(queue)
+PayloadOrderer{B,C}(queue::Channel{ParsedPayload{B,C}}) where {B,C} = PayloadOrderer{B,C}(queue, 1, sizehint!(ParsedPayload{B,C}[], Threads.nthreads()))
+PayloadOrderer{B,C}() where {B,C} = PayloadOrderer{B,C}(Channel{ParsedPayload}(Inf), 1, sizehint!(ParsedPayload{B,C}[], Threads.nthreads()))
 
 function _reenqueue_ordered!(queue::Channel{T}, waiting_room::Vector{T}, payload::T) where {T}
     row = payload.row_num
