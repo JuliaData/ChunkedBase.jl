@@ -20,10 +20,10 @@ last_row(payload::ParsedPayload) = (payload.row_num + length(payload) - 1)
 #
 
 # Like a Channel, but when you take! a Payload from it, it will be the next one in order
-mutable struct PayloadOrderer
-    queue::Channel{ParsedPayload}
+mutable struct PayloadOrderer{B<:AbstractResultBuffer, C<:AbstractParsingContext}
+    queue::Channel{ParsedPayload{B,C}}
     expected_row::Int
-    waititng_room::Vector{ParsedPayload}
+    waititng_room::Vector{ParsedPayload{B,C}}
 end
 PayloadOrderer(queue::Channel) = PayloadOrderer(queue, 1, sizehint!(ParsedPayload[], Threads.nthreads()))
 PayloadOrderer() = PayloadOrderer(Channel{ParsedPayload}(Inf), 1, sizehint!(ParsedPayload[], Threads.nthreads()))
