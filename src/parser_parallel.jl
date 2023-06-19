@@ -72,7 +72,7 @@ function process_and_consume_task(
             newline_segment = @view(ctx.newline_positions.elements[task_start:task_end])
             populate_result_buffer!(result_buf, newline_segment, parsing_ctx, ctx.bytes, _comment, CT)
             # Defined by the user via overload on consume_ctx
-            consume!(consume_ctx, ParsedPayload(row_num, task_end - task_start + 1, result_buf, parsing_ctx, ctx, task_start))
+            consume!(consume_ctx, ParsedPayload(row_num, Int(task_end - task_start), result_buf, parsing_ctx, ctx, task_start))
             task_done!(consume_ctx, ctx)
             # TRACING #  push!(trace, time_ns())
         end
