@@ -4,11 +4,9 @@ using SentinelArrays.BufferedVectors
 using NewlineLexers
 
 
-struct TestResultBuffer <: AbstractResultBuffer end
-
 @testset "API basics" begin
     @testset "defaults" begin
-        chunking_ctx = ChunkingContext(1, 1, 0, nothing)
+        chunking_ctx = ChunkingContext(4, 1, 0, nothing)
         consume_ctx = ChunkedBase.SkipContext() # uses default methods
         @assert chunking_ctx.counter.n == 0
 
@@ -174,26 +172,23 @@ end
     ctx = ChunkingContext(10, 1, 0, nothing)
     @test ChunkedBase.initial_read!(IOBuffer(" "), ctx) == 1
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer(" "), ctx, true) == 0
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx) == 1
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("      "), ctx) == 4
 
-    ctx = ChunkingContext(2, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx) == 2
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("     "), ctx) == 4
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx) == 2
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("    "), ctx, true) == 0
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx, true) == 0
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("     "), ctx, true) == 0
 
-    ctx = ChunkingContext(2, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx, true) == 0
-
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  "), ctx, true) == 0
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("      "), ctx, true) == 0
 
     ctx = ChunkingContext(10, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer(" 1"), ctx, true) == 1
@@ -203,28 +198,20 @@ end
     @test ChunkedBase.initial_read!(IOBuffer(" 1"), ctx) == 2
     @test ctx.bytes[1:2] == b" 1"
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer(" 1"), ctx) == 1
-    @test ctx.bytes[1] == UInt8(' ')
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("    1"), ctx) == 4
+    @test all(ctx.bytes[1:4] .== UInt8(' '))
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer(" 1"), ctx, true) == 1
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("    1"), ctx, true) == 1
     @test ctx.bytes[1] == UInt8('1')
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  1"), ctx) == 1
-    @test ctx.bytes[1] == UInt8(' ')
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("        1"), ctx) == 4
+    @test all(ctx.bytes[1:4] .== UInt8(' '))
 
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  1"), ctx, true) == 1
-    @test ctx.bytes[1] == UInt8('1')
-
-    ctx = ChunkingContext(2, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  1"), ctx) == 2
-    @test ctx.bytes[1:2] == b"  "
-
-    ctx = ChunkingContext(2, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("  1"), ctx, true) == 1
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("        1"), ctx, true) == 1
     @test ctx.bytes[1] == UInt8('1')
 
     ctx = ChunkingContext(10, 1, 0, nothing);
@@ -233,14 +220,6 @@ end
 
     ctx = ChunkingContext(10, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("12"), ctx, true) == 2
-    @test ctx.bytes[1:2] == b"12"
-
-    ctx = ChunkingContext(1, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("12"), ctx) == 1
-    @test ctx.bytes[1] == UInt8('1')
-
-    ctx = ChunkingContext(2, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("12"), ctx) == 2
     @test ctx.bytes[1:2] == b"12"
 end
 
@@ -251,14 +230,14 @@ end
     ctx = ChunkingContext(10, 1, 0, nothing)
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf "), ctx) == 1
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf "), ctx, true) == 0
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  "), ctx) == 2
     @test ctx.bytes[1:2] == b"  "
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  "), ctx, true) == 0
 
     ctx = ChunkingContext(10, 1, 0, nothing);
@@ -269,27 +248,19 @@ end
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf 1"), ctx) == 2
     @test ctx.bytes[1:2] == b" 1"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf 1"), ctx) == 2
     @test ctx.bytes[1:2] == b" 1"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf 1"), ctx, true) == 1
     @test ctx.bytes[1] == UInt8('1')
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  1"), ctx) == 3
     @test ctx.bytes[1:3] == b"  1"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  1"), ctx, true) == 1
-    @test ctx.bytes[1] == UInt8('1')
-
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  1"), ctx) == 3
-    @test ctx.bytes[1:3] == b"  1"
-
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf  1"), ctx, true) == 1
     @test ctx.bytes[1] == UInt8('1')
 
@@ -301,20 +272,20 @@ end
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf12"), ctx, true) == 2
     @test ctx.bytes[1:2] == b"12"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
+    ctx = ChunkingContext(4, 1, 0, nothing);
     @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf12"), ctx) == 2
-    @test ctx.bytes[1] == UInt8('1')
+    @test ctx.bytes[1:2] == b"12"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf1234"), ctx) == 3
-    @test ctx.bytes[1:3] == b"123"
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf12345"), ctx) == 4
+    @test ctx.bytes[1:4] == b"1234"
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf   4"), ctx, true) == 1
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf    4"), ctx, true) == 1
     @test ctx.bytes[1] == UInt8('4')
 
-    ctx = ChunkingContext(3, 1, 0, nothing);
-    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf   456"), ctx, true) == 3
+    ctx = ChunkingContext(4, 1, 0, nothing);
+    @test ChunkedBase.initial_read!(IOBuffer("\xef\xbb\xbf    456"), ctx, true) == 3
     @test ctx.bytes[1:3] == b"456"
 end
 
@@ -360,6 +331,44 @@ end
         @test ctx.newline_positions == [10]
         ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 3, 2)
         @test ctx.newline_positions == [10]
+    end
+
+    for buffersize in (9, 10)
+        ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 0, 0, '#')
+        @test ctx.newline_positions == [0, 5, 10]
+        ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 1, 1, '#')
+        @test ctx.newline_positions == [5, 10]
+        ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 1, 2, '#')
+        @test ctx.newline_positions == [10]
+        ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 2, 2, '#')
+        @test ctx.newline_positions == [10]
+        ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 2, 2, '#')
+        @test ctx.newline_positions == [10]
+    end
+    for buffersize in (10, 15)
+        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 0, 0, '#')
+        @test ctx.newline_positions == [0, 5, 10]
+        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 1, 2, '#')
+        @test ctx.newline_positions == [10]
+        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 2, 2, '#')
+        @test ctx.newline_positions == [10]
+        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 3, 2, '#')
+        @test ctx.newline_positions == [10]
+    end
+
+    for buffersize in (4, 8)
+        ctx = test_skip_rows_init("#aaa", buffersize, 0, 1, '#')
+        @test ctx.newline_positions == [5]
+        ctx = test_skip_rows_init("#aaa", buffersize, 1, 1, '#')
+        @test ctx.newline_positions == [5]
+        ctx = test_skip_rows_init("#aaa", buffersize, 2, 1, '#')
+        @test ctx.newline_positions == [5]
+    end
+    for buffersize in (5, 10)
+        ctx = test_skip_rows_init("#aaa\n", buffersize, 1, 1, '#')
+        @test ctx.newline_positions == [5]
+        ctx = test_skip_rows_init("#aaa\n", buffersize, 2, 1, '#')
+        @test ctx.newline_positions == [5]
     end
 end
 
@@ -414,14 +423,14 @@ end
 
 @testset "initial_lex!" begin
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
-    ctx = ChunkingContext(1, 1, 0, nothing)
+    ctx = ChunkingContext(4, 1, 0, nothing)
     @assert lexer.done == false
     @assert ctx.newline_positions == [0]
     ChunkedBase.initial_lex!(lexer, ctx, 0)
     @test ctx.newline_positions == [0]
 
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
-    ctx = ChunkingContext(1, 1, 0, nothing)
+    ctx = ChunkingContext(4, 1, 0, nothing)
     @assert lexer.done == false
     @assert ctx.newline_positions == [0]
     seekend(lexer.io)
@@ -444,14 +453,14 @@ end
     @test ctx.newline_positions == [0, 5, 9]
 
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
-    ctx = ChunkingContext(1, 1, 0, nothing)
+    ctx = ChunkingContext(4, 1, 0, nothing)
     ctx.newline_positions.elements[1] = 1
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 0)
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 5)
 
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
     lexer.done = true
-    ctx = ChunkingContext(1, 1, 0, nothing)
+    ctx = ChunkingContext(4, 1, 0, nothing)
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 0)
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 5)
 
@@ -461,6 +470,41 @@ end
     ctx.bytes[5] = UInt8('\n')
     @test_throws ChunkedBase.NoValidRowsInBufferError ChunkedBase.initial_lex!(lexer, ctx, 4)
 end
+
+
+@testset "_detect_newline" begin
+    s = b"\n"
+    @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\n')
+
+    s = b"\r\n"
+    @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\n')
+
+    s = b"\r"
+    @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\r')
+
+    @test_throws ArgumentError ChunkedBase._detect_newline(b"a", 1, 1)
+    @test ChunkedBase._detect_newline(b"", 1, 0) == UInt8('\n') # empty file
+
+    s = b"a,b,c\ne,f,g\r"
+    @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\n')
+
+    s = b"a,b,c\ne,f,g\r"
+    @test ChunkedBase._detect_newline(s, 7, length(s)) == UInt8('\r')
+
+    s = b"a,b,c\re,f,g\n"
+    @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\n')
+
+    s = b"a,b,c\re,f,g\n"
+    @test ChunkedBase._detect_newline(s, 1, 6) == UInt8('\r')
+
+    s = b"a,b\n,c\re,f,g\n"
+    @test ChunkedBase._detect_newline(s, 6, 9) == UInt8('\r')
+
+    s = b"a,b,c\re,f,g"
+    @test ChunkedBase._detect_newline(s, 5, 8) == UInt8('\r')
+end
+
+include("e2e_tests.jl")
 
 #=
 using Coverage
