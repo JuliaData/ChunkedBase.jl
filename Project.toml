@@ -1,7 +1,7 @@
 name = "ChunkedBase"
 uuid = "a380dd43-0ebf-4429-88d6-6f06ea920732"
 authors = ["Tomáš Drvoštěp <tomas.drvostep@gmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 CodecZlibNG = "642d12eb-acb5-4437-bcfc-a25e07ad685c"
