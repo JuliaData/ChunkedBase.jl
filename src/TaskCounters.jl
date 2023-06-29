@@ -26,7 +26,7 @@ function dec!(t::TaskCounter, n::Int=1)
     Base.@lock t begin
         @assert t.n >= n "Trying decrement a `TaskCounter` past zero, `$(t.n)` -> `$(t.n - n)`"
         t.n -= n
-        notify(t.cond)
+        (t.n == 0) && notify(t.cond)
     end
     return nothing
 end
