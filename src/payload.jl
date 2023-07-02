@@ -3,7 +3,7 @@
 #
 
 # What we send to the consume! method
-struct ParsedPayload{B<:AbstractResultBuffer, C<:AbstractParsingContext}
+struct ParsedPayload{B, C<:AbstractParsingContext}
     row_num::Int
     len::Int
     results::B
