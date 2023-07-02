@@ -1,11 +1,11 @@
-using GLMakie, ChunkedCSV
+using GLMakie, ChunkedBase
 
 function plot_traces()
-    t1 = copy(ChunkedCSV.T1)
-    t2 = copy(ChunkedCSV.T2)
-    io_task = copy(ChunkedCSV.IO_TASK_TIMES)
-    lexer_task = copy(ChunkedCSV.LEXER_TASK_TIMES)
-    parser_tasks = filter(x->length(x)>0, ChunkedCSV.PARSER_TASKS_TIMES)
+    t1 = copy(ChunkedBase.T1)
+    t2 = copy(ChunkedBase.T2)
+    io_task = copy(ChunkedBase.IO_TASK_TIMES)
+    lexer_task = copy(ChunkedBase.LEXER_TASK_TIMES)
+    parser_tasks = filter(x->length(x)>0, ChunkedBase.PARSER_TASKS_TIMES)
 
     start = Int(mapreduce(first, min, parser_tasks, init=min(io_task[1], lexer_task[1])))
 

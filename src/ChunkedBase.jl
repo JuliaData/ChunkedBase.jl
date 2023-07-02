@@ -37,6 +37,7 @@ function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer,
     (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
     (0 < nworkers < 256) || throw(ArgumentError("`nworkers` argument must be larger than 0 and smaller than 256."))
     (0 <= limit <= typemax(Int)) || throw(ArgumentError("`limit` argument must be positive and smaller than 9_223_372_036_854_775_808."))
+    # TRACING #  clear_traces!(nworkers)
     return ChunkingContext(
         1,
         TaskCounter(),
@@ -115,15 +116,15 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING # const T1 = UInt[]
 # TRACING # const T2 = UInt[]
 # TRACING # get_parser_task_trace(i) = PARSER_TASKS_TIMES[i]
-# TRACING # function clear_traces!()
-# TRACING #     for _ in length(PARSER_TASKS_TIMES)+1:Threads.nthreads()
+# TRACING # function clear_traces!(nworkers::Int=Threads.nthreads())
+# TRACING #     for _ in (length(PARSER_TASKS_TIMES)+1:nworkers)
 # TRACING #         push!(PARSER_TASKS_TIMES, UInt[])
 # TRACING #     end
-# TRACING #     empty!(ChunkedCSV.IO_TASK_TIMES)
-# TRACING #     empty!(ChunkedCSV.LEXER_TASK_TIMES)
-# TRACING #     empty!(ChunkedCSV.T1)
-# TRACING #     empty!(ChunkedCSV.T2)
-# TRACING #     foreach(empty!, ChunkedCSV.PARSER_TASKS_TIMES)
+# TRACING #     empty!(IO_TASK_TIMES)
+# TRACING #     empty!(LEXER_TASK_TIMES)
+# TRACING #     empty!(T1)
+# TRACING #     empty!(T2)
+# TRACING #     foreach(empty!, PARSER_TASKS_TIMES)
 # TRACING #     return nothing
 # TRACING # end
 
