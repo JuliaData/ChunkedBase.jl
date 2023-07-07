@@ -12,6 +12,9 @@ const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
 function populate_result_buffer! end
 
 abstract type AbstractParsingContext end
+# We expect `get_result_buffers(parsing_ctx)` to return a Vector of <:AbstractResultBuffer
+get_result_buffers(ctx::AbstractParsingContext) = ctx.result_buffers
+should_use_parallel(ctx::AbstractParsingContext) = length(get_result_buffers(ctx)) > 1
 
 # Synchronization mechanism -- after we lexed all rows, we split them in N tasks and TaskCounter
 # in ChunkingContext will block the io/lexer to overwrite the current chunk unless workers
