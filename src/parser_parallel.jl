@@ -1,3 +1,6 @@
+# What the read_and_lex_task! task submits to the many parser tasks
+const SubtaskMetadata = @NamedTuple{task_start::Int32, task_end::Int32, row_num::Int, task_num::Int, use_current_context::Bool}
+
 function submit_lexed_rows!(parsing_queue, consume_ctx, chunking_ctx, row_num)
     task_size = estimate_task_size(chunking_ctx)
     ntasks = cld(length(chunking_ctx.newline_positions), task_size)
@@ -8,7 +11,7 @@ function submit_lexed_rows!(parsing_queue, consume_ctx, chunking_ctx, row_num)
     task_num = 1
     for task in Iterators.partition(eachindex(chunking_ctx.newline_positions), task_size)
         task_end = Int32(last(task))
-        put!(parsing_queue, (task_start, task_end, row_num, task_num, chunking_ctx.id == 1))
+        put!(parsing_queue, SubtaskMetadata((task_start, task_end, row_num, task_num, chunking_ctx.id == 1)))
         row_num += Int(task_end - task_start)
         task_start = task_end
         task_num += 1
@@ -47,13 +50,13 @@ end
 
 function process_and_consume_task(
     worker_id::Int,                                 # unique identifier of this task
-    parsing_queue::Channel{T},                      # where workers receive work
+    parsing_queue::Channel{SubtaskMetadata},        # where workers receive work
     result_buffers::Vector{<:AbstractResultBuffer}, # where we store parsed results
     consume_ctx::AbstractConsumeContext,            # user-provided data (what to to with the parsed results)
     parsing_ctx::AbstractParsingContext,            # library-provided data (to distinguish JSONL and CSV processing)
     chunking_ctx::ChunkingContext,                  # internal data to facilitate chunking and synchronization
     chunking_ctx_next::ChunkingContext,             # double-buffering
-) where {T}
+)
     # TRACING # trace = get_parser_task_trace(worker_id)
     _comment = chunking_ctx.comment
     try
@@ -95,7 +98,7 @@ function parse_file_parallel(
     @assert chunking_ctx.id == 1
     length(result_buffers) != total_result_buffers_count(chunking_ctx) && ArgumentError("Expected $(total_result_buffers_count(chunking_ctx)) result buffers, got $(length(result_buffers)).")
 
-    parsing_queue = Channel{Tuple{Int32,Int32,Int,Int,Bool}}(Inf)
+    parsing_queue = Channel{SubtaskMetadata}(Inf)
     if lexer.done
         chunking_ctx_next = chunking_ctx
     else
@@ -117,7 +120,7 @@ function parse_file_parallel(
     end
     # Cleanup
     for _ in 1:chunking_ctx.nworkers
-        put!(parsing_queue, (Int32(0), Int32(0), 0, 0, true))
+        put!(parsing_queue, SubtaskMetadata((Int32(0), Int32(0), 0, 0, true)))
     end
     foreach(wait, parser_tasks)
     close(parsing_queue)
