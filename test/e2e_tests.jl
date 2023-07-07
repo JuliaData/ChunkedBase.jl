@@ -3,19 +3,19 @@ using SentinelArrays: BufferedVector
 using Test
 using Random
 
-
-# ParsingContext ###########################################################################
-
-struct TestParsingContext <: AbstractParsingContext end
-
-
 # ResultBuffer #############################################################################
 
 struct TestResultBuffer <: AbstractResultBuffer
     newline_positions::BufferedVector{Int32}
 end
 
-function ChunkedBase.populate_result_buffer!(result_buf::TestResultBuffer, newlines_segment::AbstractVector{Int32}, ::TestParsingContext, ::Vector{UInt8}, ::Union{Nothing,Vector{UInt8}}=nothing, ::Type{CT}=Tuple{}) where {CT}
+# ParsingContext ###########################################################################
+
+struct TestParsingContext <: AbstractParsingContext
+    result_buffers::Vector{TestResultBuffer}
+end
+
+function ChunkedBase.populate_result_buffer!(result_buf::TestResultBuffer, newlines_segment::AbstractVector{Int32}, ::TestParsingContext, ::Vector{UInt8}, ::Union{Nothing,Vector{UInt8}}=nothing)
     empty!(result_buf.newline_positions)
     n = length(newlines_segment)
     Base.ensureroom(result_buf.newline_positions, n)
@@ -25,7 +25,6 @@ function ChunkedBase.populate_result_buffer!(result_buf::TestResultBuffer, newli
 
     return nothing
 end
-
 
 # ConsumeContext 1  ########################################################################
 ### TestConsumeContext #####################################################################
@@ -68,10 +67,12 @@ Base.eof(io::ThrowingIO) = Base.eof(io.io)
 
 # utils ####################################################################################
 make_buf(nrows=1) = TestResultBuffer(BufferedVector{Int32}(collect(Int32(1):Int32(nrows)), nrows))
-make_payload(c, nrows=1, row_num=0) = ParsedPayload{TestResultBuffer,TestParsingContext}(row_num, nrows, make_buf(nrows), TestParsingContext(), c, row_num)
+function make_payload(c, nrows=1, row_num=0)
+    buf = make_buf(nrows)
+    ParsedPayload{TestResultBuffer,TestParsingContext}(row_num, nrows, buf, TestParsingContext([buf]), c, row_num)
+end
 
 function test_serial(io; buffersize=8*1024, limit=0, comment=nothing, skipto=0, newline=UInt8('\n'), lexer_args=(nothing,))
-    parsing_ctx = TestParsingContext()
     queue = PayloadOrderer{TestResultBuffer,TestParsingContext}()
     consume_ctx = TestConsumeContext(queue)
 
@@ -82,9 +83,10 @@ function test_serial(io; buffersize=8*1024, limit=0, comment=nothing, skipto=0, 
     ChunkedBase.skip_rows_init!(lexer, chunking_ctx, skipto)
 
     result_buf = TestResultBuffer(BufferedVector{Int32}(Int32[0], 1))
+    parsing_ctx = TestParsingContext([result_buf])
     Threads.@spawn begin
         try
-            parse_file_serial($lexer, $parsing_ctx, $consume_ctx, $chunking_ctx, $result_buf, Tuple{})
+            parse_file_serial($lexer, $parsing_ctx, $consume_ctx, $chunking_ctx)
         finally
             close($queue)
         end
@@ -93,7 +95,6 @@ function test_serial(io; buffersize=8*1024, limit=0, comment=nothing, skipto=0, 
 end
 
 function test_parallel(io; buffersize=8*1024, nworkers=2, limit=0, comment=nothing, skipto=0, newline=UInt8('\n'), lexer_args=(nothing,))
-    parsing_ctx = TestParsingContext()
     queue = PayloadOrderer{TestResultBuffer,TestParsingContext}()
     consume_ctx = TestConsumeContext(queue)
 
@@ -104,9 +105,10 @@ function test_parallel(io; buffersize=8*1024, nworkers=2, limit=0, comment=nothi
     ChunkedBase.skip_rows_init!(lexer, chunking_ctx, skipto)
 
     result_bufs = [TestResultBuffer(BufferedVector{Int32}(Int32[0], 1)) for _ in 1:ChunkedBase.total_result_buffers_count(chunking_ctx)]
+    parsing_ctx = TestParsingContext(result_bufs)
     Threads.@spawn begin
         try
-            parse_file_parallel($lexer, $parsing_ctx, $consume_ctx, $chunking_ctx, $result_bufs, Tuple{})
+            parse_file_parallel($lexer, $parsing_ctx, $consume_ctx, $chunking_ctx)
         catch e
             @error "error in parse_file_parallel $e"
             rethrow()
@@ -268,10 +270,9 @@ end
             @test_throws ErrorException("These contexts are for throwing, and that's all what they do") begin
                 parse_file_serial(
                     Lexer(IOBuffer("[1,2]\n[3,4]"), nothing, '\n'),
-                    TestParsingContext(),
+                    TestParsingContext([make_buf(1)]),
                     throw_ctx,
                     ChunkingContext(6, 1, 0, nothing),
-                    make_buf(1),
                 )
             end
             @assert !isempty(throw_ctx.tasks)
@@ -286,10 +287,9 @@ end
             @test_throws TaskFailedException begin
                 parse_file_parallel(
                     Lexer(IOBuffer(("[1,2]\n[3,4]\n" ^ 800)), nothing, '\n'), # 1600 rows total
-                    TestParsingContext(),
+                    TestParsingContext([make_buf(1) for _ in 1:(2*nworkers)]),
                     throw_ctx,
                     ChunkingContext(12, nworkers, 0, nothing),
-                    [make_buf(1) for _ in 1:(2*nworkers)],
                 )
             end
             sleep(0.2)
@@ -306,10 +306,9 @@ end
             @test_throws ErrorException("That should be enough data for everyone") begin
                 parse_file_serial(
                     Lexer(ThrowingIO(("[1,2]\n[3,4]\n" ^ 10)), nothing, '\n'), # 20 rows total
-                    TestParsingContext(),
+                    TestParsingContext([make_buf(1)]),
                     throw_ctx,
                     ChunkingContext(6, 1, 0, nothing),
-                    make_buf(1),
                 )
             end
             @assert !isempty(throw_ctx.tasks)
@@ -323,10 +322,9 @@ end
             @test_throws TaskFailedException begin
                 parse_file_parallel(
                     Lexer(ThrowingIO(("[1,2]\n[3,4]\n" ^ 800)), nothing, '\n'), # 1600 rows total
-                    TestParsingContext(),
+                    TestParsingContext([make_buf(1) for _ in 1:(2*nworkers)]),
                     throw_ctx,
                     ChunkingContext(12, nworkers, 0, nothing),
-                    [make_buf(1) for _ in 1:(2*nworkers)],
                 )
             end
             sleep(0.2)

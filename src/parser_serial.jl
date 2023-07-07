@@ -3,11 +3,10 @@ function parse_file_serial(
     parsing_ctx::AbstractParsingContext,
     consume_ctx::AbstractConsumeContext,
     chunking_ctx::ChunkingContext,
-    result_buf::AbstractResultBuffer,
-    ::Type{CT}=Tuple{},
-) where {CT}
+)
     row_num = 1
     _comment = chunking_ctx.comment
+    result_buf = only(get_result_buffers(parsing_ctx))
     try
         @inbounds while true
             limit_eols!(chunking_ctx, row_num) && break
@@ -17,7 +16,7 @@ function parse_file_serial(
                 setup_tasks!(consume_ctx, chunking_ctx, 1)
                 task_end = Int32(last(task))
                 newline_segment = @view(chunking_ctx.newline_positions.elements[task_start:task_end])
-                populate_result_buffer!(result_buf, newline_segment, parsing_ctx, chunking_ctx.bytes, _comment, CT)
+                populate_result_buffer!(result_buf, newline_segment, parsing_ctx, chunking_ctx.bytes, _comment)
                 consume!(consume_ctx, ParsedPayload(row_num, length(task) - 1, result_buf, parsing_ctx, chunking_ctx, task_start))
                 row_num += Int(task_end - task_start)
                 task_start = task_end

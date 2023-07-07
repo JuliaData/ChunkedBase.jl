@@ -53,8 +53,7 @@ function process_and_consume_task(
     parsing_ctx::AbstractParsingContext,            # library-provided data (to distinguish JSONL and CSV processing)
     chunking_ctx::ChunkingContext,                  # internal data to facilitate chunking and synchronization
     chunking_ctx_next::ChunkingContext,             # double-buffering
-    ::Type{CT}                                      # compile time known data for parser
-) where {T,CT}
+) where {T}
     # TRACING # trace = get_parser_task_trace(worker_id)
     _comment = chunking_ctx.comment
     try
@@ -70,7 +69,7 @@ function process_and_consume_task(
             ctx = ifelse(use_current_context, chunking_ctx, chunking_ctx_next)
             # Defined by the library using ChunkedBase via overload on the specific AbstractResultBuffer and AbstractParsingContext
             newline_segment = @view(ctx.newline_positions.elements[task_start:task_end])
-            populate_result_buffer!(result_buf, newline_segment, parsing_ctx, ctx.bytes, _comment, CT)
+            populate_result_buffer!(result_buf, newline_segment, parsing_ctx, ctx.bytes, _comment)
             # Defined by the user via overload on consume_ctx
             consume!(consume_ctx, ParsedPayload(row_num, Int(task_end - task_start), result_buf, parsing_ctx, ctx, task_start))
             task_done!(consume_ctx, ctx)
@@ -91,9 +90,8 @@ function parse_file_parallel(
     parsing_ctx::AbstractParsingContext,
     consume_ctx::AbstractConsumeContext,
     chunking_ctx::ChunkingContext,
-    result_buffers::Vector{<:AbstractResultBuffer},
-    ::Type{CT}=Tuple{}
-) where {CT}
+)
+    result_buffers = get_result_buffers(parsing_ctx)
     @assert chunking_ctx.id == 1
     length(result_buffers) != total_result_buffers_count(chunking_ctx) && ArgumentError("Expected $(total_result_buffers_count(chunking_ctx)) result buffers, got $(length(result_buffers)).")
 
@@ -105,7 +103,7 @@ function parse_file_parallel(
     end
     parser_tasks = sizehint!(Task[], chunking_ctx.nworkers)
     for i in 1:chunking_ctx.nworkers
-        t = Threads.@spawn process_and_consume_task($i, $parsing_queue, $result_buffers, $consume_ctx, $parsing_ctx, $chunking_ctx, $chunking_ctx_next, $CT)
+        t = Threads.@spawn process_and_consume_task($i, $parsing_queue, $result_buffers, $consume_ctx, $parsing_ctx, $chunking_ctx, $chunking_ctx_next)
         push!(parser_tasks, t)
     end
 
