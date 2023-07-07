@@ -8,11 +8,6 @@ using SentinelArrays.BufferedVectors
 
 const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
 
-# populate_result_buffer!(result_buf::AbstractResultBuffer, newlines::AbstractVector{Int32}, parsing_ctx::AbstractParsingContext, comment::Union{Nothing,Vector{UInt8}}=nothing, ::Type{CT}=Tuple{}) where {CT}
-function populate_result_buffer! end
-
-abstract type AbstractParsingContext end
-
 # Synchronization mechanism -- after we lexed all rows, we split them in N tasks and TaskCounter
 # in ChunkingContext will block the io/lexer to overwrite the current chunk unless workers
 # report back N times that they are done with their tasks.
@@ -62,16 +57,15 @@ function ChunkingContext(ctx::ChunkingContext)
     return out
 end
 tasks_per_chunk(ctx::ChunkingContext) = ctx.nworkers
-total_result_buffers_count(ctx::ChunkingContext) = 2tasks_per_chunk(ctx)
 last_newline_at(ctx::ChunkingContext) = Int(last(ctx.newline_positions))
-function should_use_parallel(ctx::ChunkingContext, _force)
+function should_use_parallel(ctx::ChunkingContext, _force=:default)
     return !(
         _force === :serial ||
         ((_force !== :parallel) && (Threads.nthreads() == 1 || ctx.nworkers == 1 || last_newline_at(ctx) < MIN_TASK_SIZE_IN_BYTES))
     )
 end
 
-# We split the detected newlines equally among thr nworkers parsing tasks, but each
+# We split the detected newlines equally among the nworkers parsing tasks, but each
 # unit of work should contain at least 16 KiB of raw bytes (MIN_TASK_SIZE_IN_BYTES).
 function estimate_task_size(ctx::ChunkingContext)
     eols = ctx.newline_positions
@@ -87,23 +81,19 @@ function estimate_task_size(ctx::ChunkingContext)
     return min(max(min_rows, cld(rows, prorated_maxtasks)), rows)
 end
 
-abstract type AbstractResultBuffer end
-
-include("payload.jl")
-
 include("exceptions.jl")
 include("read_and_lex_utils.jl")
 include("read_and_lex.jl")
 include("ConsumeContexts.jl")
 using .ConsumeContexts
 
+include("payload.jl")
 include("parser_serial.jl")
 include("parser_parallel.jl")
 
-export ChunkingContext, tasks_per_chunk, total_result_buffers_count
+export ChunkingContext, tasks_per_chunk
 export AbstractParsingContext
-export AbstractConsumeContext, setup_tasks!, consume!, task_done!, cleanup
-export AbstractResultBuffer
+export AbstractConsumeContext, setup_tasks!, process!, consume!, task_done!, cleanup
 export TaskCounter
 export ParsedPayload, PayloadOrderer
 export SkipContext

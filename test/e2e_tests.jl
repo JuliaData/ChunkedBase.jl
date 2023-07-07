@@ -11,7 +11,7 @@ struct TestParsingContext <: AbstractParsingContext end
 
 # ResultBuffer #############################################################################
 
-struct TestResultBuffer <: AbstractResultBuffer
+struct TestResultBuffer
     newline_positions::BufferedVector{Int32}
 end
 

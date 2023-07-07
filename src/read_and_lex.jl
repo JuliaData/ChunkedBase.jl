@@ -14,7 +14,7 @@ end
 function prepare_buffer!(io::IO, buf::Vector{UInt8}, last_newline_at::Int)
     ptr = pointer(buf)
     buffersize = length(buf)
-    @inbounds if last_newline_at == 0
+    if last_newline_at == 0
         # This is the first time we saw the buffer, we'll fill it up and skip leading BOM
         bytes_read_in = readbytesall!(io, buf, buffersize)
         if bytes_read_in > 2 && _hasBOM(buf)
@@ -24,7 +24,7 @@ function prepare_buffer!(io::IO, buf::Vector{UInt8}, last_newline_at::Int)
     elseif last_newline_at < buffersize
         # We'll keep the bytes that are past the last newline, shifting them to the left
         # and refill the rest of the buffer.
-        unsafe_copyto!(ptr, ptr + last_newline_at, buffersize - last_newline_at)
+        GC.@preserve buf unsafe_copyto!(ptr, ptr + last_newline_at, buffersize - last_newline_at)
         bytes_read_in = @inbounds readbytesall!(io, @view(buf[buffersize - last_newline_at + 1:end]), last_newline_at)
     else
         # Last chunk was consumed entirely
@@ -42,7 +42,7 @@ function check_any_valid_rows(lexer, chunking_ctx)
 end
 
 function handle_file_end!(lexer::Lexer, eols, end_pos)
-    @inbounds if eof(lexer.io)
+    if eof(lexer.io)
         # If the file ended with an unmatched quote, we throw an error
         !NewlineLexers.possibly_not_in_string(lexer) && (close(lexer.io); throw(UnmatchedQuoteError()))
         lexer.done = true

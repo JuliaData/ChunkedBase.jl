@@ -1,22 +1,28 @@
 module ConsumeContexts
 
 using ..ChunkedBase: ChunkedBase, ChunkingContext, MIN_TASK_SIZE_IN_BYTES
-using ..ChunkedBase: AbstractResultBuffer, ParsedPayload, AbstractParsingContext, BufferedVector
-using ..ChunkedBase: set!, dec!
+using ..ChunkedBase: BufferedVector, set!, dec!
 
-export AbstractConsumeContext, SkipContext
-export setup_tasks!, consume!, task_done!, sync_tasks, cleanup
+export AbstractParsingContext, AbstractConsumeContext, SkipContext
+export setup_tasks!, process!, consume!, task_done!, sync_tasks, cleanup
+
+abstract type AbstractParsingContext end
 
 abstract type AbstractConsumeContext end
 
 """
-    consume!(consume_ctx::AbstractConsumeContext, payload::ParsedPayload{<:AbstractResultBuffer, <:AbstractParsingContext})
+    process!(parsing_ctx::AbstractParsingContext, newline_segment, bytes, task_num)
+"""
+function process! end
 
-Override with your `AbstractConsumeContext` to provide a custom logic for processing the parsed results in `AbstractResultBuffer`.
+"""
+    consume!(consume_ctx::AbstractConsumeContext, payload::ParsedPayload{<:AbstractParsingContext})
+
+Override with your `AbstractConsumeContext` to provide a custom logic for processing the parsed results in `payload`.
 The method is called from multiple tasks in parallel, just after each corresponding `task_buf` has been populated.
 `task_buf` is only filled once per chunk.
 
-See also [`consume!`](@ref), [`setup_tasks!`](@ref), [`setup_tasks!`](@ref), [`cleanup`](@ref), [`AbstractResultBuffer`](@ref)
+See also [`consume!`](@ref), [`setup_tasks!`](@ref), [`cleanup`](@ref)
 """
 function consume! end
 function setup_tasks! end
@@ -34,8 +40,8 @@ is considered to be entirely processed.
 This function is called just after the we're done detecting newline positions in the current
 chunk of data and we are about to submit partitions of the detected newlines to the parse/consume tasks.
 
-`ntasks` is between 1 and two times the `nworkers` agrument to `parse_file`, depeneding on
-the size of the input. Most of the time, the value is `2*nworkers` is used, but for smaller
+`ntasks` is between 1 and two times the `nworkers` argument to `parse_file`, depeneding on
+the size of the input. Most of the time, the value is `2*nworkers`, but for smaller
 buffer sizes, smaller files or when handling the last bytes of the file, `ntasks` will be
 smaller as we try to ensure the minimal average tasks size if terms of bytes of input is at least
 $(Base.format_bytes(MIN_TASK_SIZE_IN_BYTES)). For `:serial` parsing mode, `ntasks` is always 1.
@@ -94,6 +100,6 @@ See also [`consume!`](@ref), [`setup_tasks!`](@ref), [`task_done!`](@ref), [`syn
 cleanup(::AbstractConsumeContext, ::Exception) = nothing
 
 struct SkipContext <: AbstractConsumeContext end
-consume!(::SkipContext, ::ParsedPayload) = nothing
+consume!(::SkipContext, x) = nothing
 
 end # module

@@ -3,31 +3,28 @@
 #
 
 # What we send to the consume! method
-struct ParsedPayload{B, C<:AbstractParsingContext}
+struct ParsedPayload{C<:AbstractParsingContext}
     row_num::Int
     len::Int
-    results::B
     parsing_ctx::C
-    chunking_ctx::ChunkingContext
     eols_buffer_index::Int32
 end
 Base.length(payload::ParsedPayload) = payload.len
 last_row(payload::ParsedPayload) = payload.row_num + length(payload) - 1
-
 
 #
 # PayloadOrderer
 #
 
 # Like a Channel, but when you take! a Payload from it, it will be the next one in order
-mutable struct PayloadOrderer{B<:AbstractResultBuffer, C<:AbstractParsingContext} <: AbstractChannel{ParsedPayload{B,C}}
-    queue::Channel{ParsedPayload{B,C}}
+mutable struct PayloadOrderer{C<:AbstractParsingContext} <: AbstractChannel{ParsedPayload{C}}
+    queue::Channel{ParsedPayload{C}}
     expected_row::Int
-    waititng_room::Vector{ParsedPayload{B,C}}
+    waititng_room::Vector{ParsedPayload{C}}
 end
-PayloadOrderer(queue::Channel{ParsedPayload{B,C}}) where {B,C} = PayloadOrderer{B,C}(queue)
-PayloadOrderer{B,C}(queue::Channel{ParsedPayload{B,C}}) where {B,C} = PayloadOrderer{B,C}(queue, 1, sizehint!(ParsedPayload{B,C}[], Threads.nthreads()))
-PayloadOrderer{B,C}() where {B,C} = PayloadOrderer{B,C}(Channel{ParsedPayload{B,C}}(Inf), 1, sizehint!(ParsedPayload{B,C}[], Threads.nthreads()))
+PayloadOrderer(queue::Channel{ParsedPayload{C}}) where {C} = PayloadOrderer{C}(queue)
+PayloadOrderer{C}(queue::Channel{ParsedPayload{C}}) where {C} = PayloadOrderer{C}(queue, 1, sizehint!(ParsedPayload{C}[], Threads.nthreads()))
+PayloadOrderer{C}() where {C} = PayloadOrderer{C}(Channel{ParsedPayload{C}}(Inf), 1, sizehint!(ParsedPayload{C}[], Threads.nthreads()))
 
 function _reenqueue_ordered!(queue::Channel{T}, waiting_room::Vector{T}, payload::T) where {T}
     row = payload.row_num
@@ -58,7 +55,7 @@ function _reorder!(queue::Channel{T}, waiting_room::Vector{T}, payload::T, expec
     return true
 end
 
-Base.put!(o::PayloadOrderer{B,C}, x::ParsedPayload{B,C}) where {B,C} = put!(o.queue, x)
+Base.put!(o::PayloadOrderer{C}, x::ParsedPayload{C}) where {C} = put!(o.queue, x)
 Base.close(o::PayloadOrderer, excp::Exception=Base.closed_exception()) = close(o.queue, excp)
 Base.isopen(o::PayloadOrderer) = isopen(o.queue)
 
