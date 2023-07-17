@@ -64,6 +64,7 @@ function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newlin
     end
 
     bytes_read_in = prepare_buffer!(lexer.io, chunking_ctx.bytes, _last_newline_at)
+    chunking_ctx.buffer_refills[] += 1
     # _last_newline_at == 0 && bytes_read_in == 0 && return nothing # only BOM / whitespace in the buffer
 
     start_pos = _last_newline_at == 0 ? 1 : length(chunking_ctx.bytes) - _last_newline_at + 1
@@ -84,6 +85,7 @@ function initial_read!(io, chunking_ctx, skip_leading_whitespace=false)
 
     # This is the first time we saw the buffer, we'll just fill it up
     bytes_read_in = readbytesall!(io, buf, buffersize)
+    chunking_ctx.buffer_refills[] += 1
 
     # bytes_read_in = _skip_over_initial_whitespace_and_bom!(io, buf, bytes_read_in)
     starts_with_bom = bytes_read_in > 2 && _hasBOM(buf)

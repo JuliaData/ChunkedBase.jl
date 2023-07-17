@@ -32,6 +32,8 @@ struct ChunkingContext
     nworkers::Int
     limit::Int
     comment::Union{Nothing,Vector{UInt8}}
+    # combination on `id` and `buffer_refills` can be used to detect if any pointers to `bytes` are still valid
+    buffer_refills::Base.RefValue{Int}
 end
 function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}})
     (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
@@ -46,6 +48,7 @@ function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer,
         nworkers,
         limit,
         _comment_to_bytes(comment),
+        Ref(0),
     )
 end
 function ChunkingContext(ctx::ChunkingContext)
@@ -57,6 +60,7 @@ function ChunkingContext(ctx::ChunkingContext)
         ctx.nworkers,
         ctx.limit,
         ctx.comment,
+        Ref(0),
     )
     out.newline_positions.elements[1] = 0
     return out

@@ -128,7 +128,7 @@ end
     function _get_ctx(; last_newline_at, newlines_num, buffersize, nworkers)
         eols = zeros(Int32, newlines_num)
         eols[end] = last_newline_at
-        return ChunkingContext(1, ChunkedBase.TaskCounter(), BufferedVector(eols, newlines_num), zeros(UInt8, buffersize), nworkers, 0, nothing)
+        return ChunkingContext(1, ChunkedBase.TaskCounter(), BufferedVector(eols, newlines_num), zeros(UInt8, buffersize), nworkers, 0, nothing, Ref(0))
     end
     # Empty input (only 0 as end of line) -> return 1
     ctx = _get_ctx(; last_newline_at=0, newlines_num=1, buffersize=2*16*1024, nworkers=4)
@@ -144,7 +144,7 @@ end
     ctx = _get_ctx(; last_newline_at=100000, newlines_num=100000, buffersize=100000, nworkers=3)
     @test ChunkedBase.estimate_task_size(ctx) == 33334
 
-    # Each task should be at least 16KiB (ChunkedBase.MIN_TASK_SIZE_IN_BYTES) worht of data to work on
+    # Each task should be at least 16KiB (ChunkedBase.MIN_TASK_SIZE_IN_BYTES) worth of data to work on
     ctx = _get_ctx(; last_newline_at=100000, newlines_num=100000, buffersize=100000, nworkers=10)
     @test ChunkedBase.estimate_task_size(ctx) == 16*1024
 
