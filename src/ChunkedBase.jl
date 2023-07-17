@@ -127,5 +127,33 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #     foreach(empty!, PARSER_TASKS_TIMES)
 # TRACING #     return nothing
 # TRACING # end
+# TRACING # function dump_traces(path)
+# TRACING #     open(path, "w") do io
+# TRACING #         write(io, UInt32(length(IO_TASK_TIMES)), IO_TASK_TIMES)
+# TRACING #         write(io, UInt32(length(LEXER_TASK_TIMES)), LEXER_TASK_TIMES)
+# TRACING #         write(io, UInt32(length(T1)), T1)
+# TRACING #         write(io, UInt32(length(T2)), T2)
+# TRACING #
+# TRACING #         write(io, UInt32(length(PARSER_TASKS_TIMES)))
+# TRACING #         for x in PARSER_TASKS_TIMES
+# TRACING #             write(io, UInt32(length(x)), x)
+# TRACING #         end
+# TRACING #     end
+# TRACING #     return nothing
+# TRACING # end
+# TRACING # function load_traces!(path)
+# TRACING #     open(path, "r") do io
+# TRACING #         read!(io, resize!(IO_TASK_TIMES, read(io, UInt32)))
+# TRACING #         read!(io, resize!(LEXER_TASK_TIMES, read(io, UInt32)))
+# TRACING #         read!(io, resize!(T1, read(io, UInt32)))
+# TRACING #         read!(io, resize!(T2, read(io, UInt32)))
+# TRACING #
+# TRACING #         resize!(PARSER_TASKS_TIMES, read(io, UInt32))
+# TRACING #         for x in PARSER_TASKS_TIMES
+# TRACING #             read!(io, resize!(x, read(io, UInt32)))
+# TRACING #         end
+# TRACING #     end
+# TRACING #     return nothing
+# TRACING # end
 
 end

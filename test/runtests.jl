@@ -3,6 +3,7 @@ using ChunkedBase
 using SentinelArrays.BufferedVectors
 using NewlineLexers
 
+@testset "ChunkedBase" begin
 
 @testset "API basics" begin
     @testset "defaults" begin
@@ -56,7 +57,6 @@ end
         @test_throws ArgumentError ChunkedBase.dec!(counter, -1)
     end
 end
-
 
 @testset "handle_file_end" begin
     # Lexer{Nothing,Nothing,Nothing} cannot end on a string
@@ -290,88 +290,123 @@ end
 end
 
 @testset "skip_rows_init!" begin
-    function test_skip_rows_init(data, buffersize, rows_to_skip, expected_num_skipped, comment=nothing)
+    function test_skip_rows_init(data, buffersize, rows_to_skip, expected_num_skipped, comment=nothing, ignoreemptyrows=false)
         lexer = NewlineLexers.Lexer(IOBuffer(data), nothing, UInt8('\n'))
         ctx = ChunkingContext(buffersize, 1, 0, comment)
         ChunkedBase.read_and_lex!(lexer, ctx, 0)
 
-        @test ChunkedBase.skip_rows_init!(lexer, ctx, rows_to_skip) == expected_num_skipped
+        @test ChunkedBase.skip_rows_init!(lexer, ctx, rows_to_skip, ignoreemptyrows) == expected_num_skipped
         return ctx
     end
 
     for buffersize in (4, 8)
-        ctx = test_skip_rows_init("aaaa", buffersize, 0, 0)
-        @test ctx.newline_positions == [0, 5]
-        ctx = test_skip_rows_init("aaaa", buffersize, 1, 1)
-        @test ctx.newline_positions == [5]
-        ctx = test_skip_rows_init("aaaa", buffersize, 2, 1)
-        @test ctx.newline_positions == [5]
+        for ignoreemptyrows in (true, false)
+            for comment in ('#', nothing)
+                ctx = test_skip_rows_init("aaaa", buffersize, 0, 0, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [0, 5]
+                ctx = test_skip_rows_init("aaaa", buffersize, 1, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5]
+                ctx = test_skip_rows_init("aaaa", buffersize, 2, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5]
+            end
+        end
     end
     for buffersize in (5, 10)
-        ctx = test_skip_rows_init("aaaa\n", buffersize, 1, 1)
-        @test ctx.newline_positions == [5]
-        ctx = test_skip_rows_init("aaaa\n", buffersize, 2, 1)
-        @test ctx.newline_positions == [5]
+        for ignoreemptyrows in (true, false)
+            for comment in ('#', nothing)
+                ctx = test_skip_rows_init("aaaa\n", buffersize, 1, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5]
+                ctx = test_skip_rows_init("aaaa\n", buffersize, 2, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5]
+            end
+        end
     end
 
     for buffersize in (9, 10)
-        ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 0, 0)
-        @test ctx.newline_positions == [0, 5, 10]
-        ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 1, 1)
-        @test ctx.newline_positions == [5, 10]
-        ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 2, 2)
-        @test ctx.newline_positions == [10]
+        for ignoreemptyrows in (true, false)
+            for comment in ('#', nothing)
+                ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 0, 0, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [0, 5, 10]
+                ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 1, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5, 10]
+                ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 2, 2, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [10]
+            end
+        end
     end
     for buffersize in (10, 15)
-        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 0, 0)
-        @test ctx.newline_positions == [0, 5, 10]
-        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 1, 1)
-        @test ctx.newline_positions == [5, 10]
-        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 2, 2)
-        @test ctx.newline_positions == [10]
-        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 3, 2)
-        @test ctx.newline_positions == [10]
+        for ignoreemptyrows in (true, false)
+            for comment in ('#', nothing)
+                ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 0, 0, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [0, 5, 10]
+                ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 1, 1, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [5, 10]
+                ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 2, 2, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [10]
+                ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 3, 2, comment, ignoreemptyrows)
+                @test ctx.newline_positions == [10]
+            end
+        end
     end
 
     for buffersize in (9, 10)
-        ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 0, 0, '#')
-        @test ctx.newline_positions == [0, 5, 10]
-        ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 1, 1, '#')
-        @test ctx.newline_positions == [5, 10]
-        ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 1, 2, '#')
-        @test ctx.newline_positions == [10]
-        ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 2, 2, '#')
-        @test ctx.newline_positions == [10]
-        ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 2, 2, '#')
-        @test ctx.newline_positions == [10]
+        for ignoreemptyrows in (true, false)
+            ctx = test_skip_rows_init("aaaa\nbbbb", buffersize, 0, 0, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [0, 5, 10]
+            ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 1, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5, 10]
+            ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 1, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+            ctx = test_skip_rows_init("#aaa\nbbbb", buffersize, 2, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+            ctx = test_skip_rows_init("#aaa\n#bbb", buffersize, 2, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+        end
     end
     for buffersize in (10, 15)
-        ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 0, 0, '#')
-        @test ctx.newline_positions == [0, 5, 10]
-        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 1, 2, '#')
-        @test ctx.newline_positions == [10]
-        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 2, 2, '#')
-        @test ctx.newline_positions == [10]
-        ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 3, 2, '#')
-        @test ctx.newline_positions == [10]
+        for ignoreemptyrows in (true, false)
+            ctx = test_skip_rows_init("aaaa\nbbbb\n", buffersize, 0, 0, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [0, 5, 10]
+            ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 1, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+            ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 2, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+            ctx = test_skip_rows_init("aaaa\n#bbb\n", buffersize, 3, 2, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [10]
+        end
     end
 
     for buffersize in (4, 8)
-        ctx = test_skip_rows_init("#aaa", buffersize, 0, 1, '#')
-        @test ctx.newline_positions == [5]
-        ctx = test_skip_rows_init("#aaa", buffersize, 1, 1, '#')
-        @test ctx.newline_positions == [5]
-        ctx = test_skip_rows_init("#aaa", buffersize, 2, 1, '#')
-        @test ctx.newline_positions == [5]
+        for ignoreemptyrows in (true, false)
+            ctx = test_skip_rows_init("#aaa", buffersize, 0, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5]
+            ctx = test_skip_rows_init("#aaa", buffersize, 1, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5]
+            ctx = test_skip_rows_init("#aaa", buffersize, 2, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5]
+        end
     end
     for buffersize in (5, 10)
-        ctx = test_skip_rows_init("#aaa\n", buffersize, 1, 1, '#')
-        @test ctx.newline_positions == [5]
-        ctx = test_skip_rows_init("#aaa\n", buffersize, 2, 1, '#')
-        @test ctx.newline_positions == [5]
+        for ignoreemptyrows in (true, false)
+            ctx = test_skip_rows_init("#aaa\n", buffersize, 1, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5]
+            ctx = test_skip_rows_init("#aaa\n", buffersize, 2, 1, '#', ignoreemptyrows)
+            @test ctx.newline_positions == [5]
+        end
     end
-end
 
+    for comment in (nothing, '#')
+        ctx = test_skip_rows_init("123\n\n\n\n\n\n\n\n1\n", 4, 1, 7, comment, true)
+        @test ctx.newline_positions == [0, 2]
+    end
+
+    ctx = test_skip_rows_init("123\n\n#1\n\n#1\n1\n", 4, 1, 4, '#', true)
+    @test ctx.newline_positions == [0, 2]
+    ctx = test_skip_rows_init("123\n\n\n\n\n", 4, 1, 0, '#', false)
+    @test ctx.newline_positions == [0,1,2,3,4]
+    ctx = test_skip_rows_init("123\n\n\n\n\n", 4, 1, 4, '#', true)
+    @test ctx.newline_positions == [4]
+end
 
 @testset "prepare_buffer!" begin
     buf = zeros(UInt8, 10)
@@ -471,7 +506,6 @@ end
     @test_throws ChunkedBase.NoValidRowsInBufferError ChunkedBase.initial_lex!(lexer, ctx, 4)
 end
 
-
 @testset "_detect_newline" begin
     s = b"\n"
     @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\n')
@@ -482,7 +516,8 @@ end
     s = b"\r"
     @test ChunkedBase._detect_newline(s, 1, length(s)) == UInt8('\r')
 
-    @test_throws ArgumentError ChunkedBase._detect_newline(b"a", 1, 1)
+    @test ChunkedBase._detect_newline(b"a", 1, 1) == UInt8('\n')
+
     @test ChunkedBase._detect_newline(b"", 1, 0) == UInt8('\n') # empty file
 
     s = b"a,b,c\ne,f,g\r"
@@ -504,7 +539,28 @@ end
     @test ChunkedBase._detect_newline(s, 5, 8) == UInt8('\r')
 end
 
+@testset "_input_to_io" begin
+    (path, io) = mktemp()
+    should_close, ret_io = ChunkedBase._input_to_io(io, false)
+    @test !should_close
+    @test io === ret_io
+
+    should_close, ret_io = ChunkedBase._input_to_io(io, true)
+    @test !should_close
+    @test io === ret_io
+
+    should_close, ret_io = ChunkedBase._input_to_io(path, false)
+    @test should_close
+    @test ret_io isa IOStream
+
+    should_close, ret_io = ChunkedBase._input_to_io(path, true)
+    @test should_close
+    @test ret_io isa ChunkedBase.MmapStream
+end
+
 include("e2e_tests.jl")
+
+end
 
 #=
 using Coverage

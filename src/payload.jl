@@ -14,13 +14,18 @@ end
 Base.length(payload::ParsedPayload) = payload.len
 last_row(payload::ParsedPayload) = payload.row_num + length(payload) - 1
 
-
 #
 # PayloadOrderer
 #
 
+function insertsorted!(arr::Vector{T}, x::T, by=identity) where {T}
+    idx = searchsortedfirst(arr, x, by=by)
+    insert!(arr, idx, x)
+    return idx
+end
+
 # Like a Channel, but when you take! a Payload from it, it will be the next one in order
-mutable struct PayloadOrderer{B<:AbstractResultBuffer, C<:AbstractParsingContext} <: AbstractChannel{ParsedPayload{B,C}}
+mutable struct PayloadOrderer{B, C<:AbstractParsingContext} <: AbstractChannel{ParsedPayload{B,C}}
     queue::Channel{ParsedPayload{B,C}}
     expected_row::Int
     waititng_room::Vector{ParsedPayload{B,C}}
@@ -40,12 +45,6 @@ function _reenqueue_ordered!(queue::Channel{T}, waiting_room::Vector{T}, payload
             break
         end
     end
-end
-
-function insertsorted!(arr::Vector{T}, x::T, by=identity) where {T}
-    idx = searchsortedfirst(arr, x, by=by)
-    insert!(arr, idx, x)
-    return idx
 end
 
 function _reorder!(queue::Channel{T}, waiting_room::Vector{T}, payload::T, expected_row::Int) where{T}
