@@ -32,6 +32,8 @@ struct ChunkingContext
     nworkers::Int
     limit::Int
     comment::Union{Nothing,Vector{UInt8}}
+    # combination on `id` and `buffer_refills` can be used to detect if any pointers to `bytes` are still valid
+    buffer_refills::Base.RefValue{Int}
 end
 function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}})
     (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
@@ -46,6 +48,7 @@ function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer,
         nworkers,
         limit,
         _comment_to_bytes(comment),
+        Ref(0),
     )
 end
 function ChunkingContext(ctx::ChunkingContext)
@@ -57,6 +60,7 @@ function ChunkingContext(ctx::ChunkingContext)
         ctx.nworkers,
         ctx.limit,
         ctx.comment,
+        Ref(0),
     )
     out.newline_positions.elements[1] = 0
     return out
@@ -125,6 +129,35 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #     empty!(T1)
 # TRACING #     empty!(T2)
 # TRACING #     foreach(empty!, PARSER_TASKS_TIMES)
+# TRACING #     return nothing
+# TRACING # end
+# TRACING # function dump_traces(path)
+# TRACING #     open(path, "w") do io
+# TRACING #         write(io, UInt32(length(IO_TASK_TIMES)), IO_TASK_TIMES)
+# TRACING #         write(io, UInt32(length(LEXER_TASK_TIMES)), LEXER_TASK_TIMES)
+# TRACING #         write(io, UInt32(length(T1)), T1)
+# TRACING #         write(io, UInt32(length(T2)), T2)
+# TRACING #
+# TRACING #         write(io, UInt32(length(PARSER_TASKS_TIMES)))
+# TRACING #         for x in PARSER_TASKS_TIMES
+# TRACING #             write(io, UInt32(length(x)), x)
+# TRACING #         end
+# TRACING #     end
+# TRACING #     return nothing
+# TRACING # end
+# TRACING # function load_traces!(path)
+# TRACING #     _resize!(vv, n) = length(vv) >= n ? resize!(vv, n) : append!(vv, [UInt[] for _ in 1:n-length(vv)])
+# TRACING #     open(path, "r") do io
+# TRACING #         read!(io, resize!(IO_TASK_TIMES, read(io, UInt32)))
+# TRACING #         read!(io, resize!(LEXER_TASK_TIMES, read(io, UInt32)))
+# TRACING #         read!(io, resize!(T1, read(io, UInt32)))
+# TRACING #         read!(io, resize!(T2, read(io, UInt32)))
+# TRACING #
+# TRACING #         _resize!(PARSER_TASKS_TIMES, read(io, UInt32))
+# TRACING #         for x in PARSER_TASKS_TIMES
+# TRACING #             read!(io, resize!(x, read(io, UInt32)))
+# TRACING #         end
+# TRACING #     end
 # TRACING #     return nothing
 # TRACING # end
 

@@ -48,7 +48,6 @@ there to be `ntasks * (1 + length(parsing_ctx.schema))` units of work per chunk
 See also [`consume!`](@ref), [`setup_tasks!`](@ref), [`task_done!`](@ref), [`cleanup`](@ref)
 """
 function setup_tasks!(::AbstractConsumeContext, chunking_ctx::ChunkingContext, ntasks::Int)
-    # TRACING # chunking_ctx.id == 1 ? push!(ChunkedBase.T1, time_ns()) : push!(ChunkedBase.T2, time_ns())
     set!(chunking_ctx.counter, ntasks)
     return nothing
 end

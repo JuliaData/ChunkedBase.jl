@@ -2,12 +2,11 @@ using ChunkedBase
 using SentinelArrays: BufferedVector
 using Test
 using Random
-
+using CodecZlibNG
 
 # ParsingContext ###########################################################################
 
 struct TestParsingContext <: AbstractParsingContext end
-
 
 # ResultBuffer #############################################################################
 
@@ -25,7 +24,6 @@ function ChunkedBase.populate_result_buffer!(result_buf::TestResultBuffer, newli
 
     return nothing
 end
-
 
 # ConsumeContext 1  ########################################################################
 ### TestConsumeContext #####################################################################
@@ -118,6 +116,18 @@ function test_parallel(io; buffersize=8*1024, nworkers=2, limit=0, comment=nothi
 end
 
 @testset "e2e newline finder" begin
+    q, counter = test_serial(IOBuffer(""))
+    @test take!(q).results.newline_positions == Int32[0]
+    ChunkedBase.dec!(counter)
+    @test counter.n == 0
+    @test Base.n_avail(q.queue) == 0
+
+    q, counter = test_parallel(IOBuffer(""))
+    @test take!(q).results.newline_positions == Int32[0]
+    ChunkedBase.dec!(counter)
+    @test counter.n == 0
+    @test Base.n_avail(q.queue) == 0
+
     q, counter = test_serial(IOBuffer("123456"))
     @test take!(q).results.newline_positions == Int32[0, 7]
     ChunkedBase.dec!(counter)
@@ -259,6 +269,49 @@ end
     @test_throws ChunkedBase.NoValidRowsInBufferError test_parallel(IOBuffer("12345"), buffersize=4)
     @test_throws ChunkedBase.UnmatchedQuoteError test_serial(IOBuffer("\"ab"), buffersize=4, lexer_args=('\\', '"', '"'))
     @test_throws ChunkedBase.UnmatchedQuoteError test_parallel(IOBuffer("\"ab"), buffersize=4, lexer_args=('\\', '"', '"'))
+end
+
+@testset "MmapStream" begin
+    mktemp() do path, io
+        write(io, "123\n45\n67\n123\n45\n67")
+        flush(io)
+        seekstart(io)
+        q, counter = test_parallel(ChunkedBase.MmapStream(io), buffersize=4, skipto=5)
+        @test take!(q).results.newline_positions == Int32[0, 3]
+        ChunkedBase.dec!(counter)
+        @test counter.n == 0
+        @test Base.n_avail(q.queue) == 0
+    end
+
+    mktemp() do path, io
+        compr_io = GzipCompressorStream(io)
+        write(compr_io, "123\n45\n67\n123\n45\n67")
+        close(compr_io)
+        q, counter = test_parallel(GzipDecompressorStream(ChunkedBase.MmapStream(open(path, "r"))), buffersize=4, skipto=5)
+        @test take!(q).results.newline_positions == Int32[0, 3]
+        ChunkedBase.dec!(counter)
+        @test counter.n == 0
+        @test Base.n_avail(q.queue) == 0
+    end
+
+    mktemp() do path, io
+        write(io, "123\n")
+        flush(io)
+        seekstart(io)
+        mm = ChunkedBase.MmapStream(io)
+        @test read(mm, UInt8) == UInt8('1')
+        @test read(mm, UInt8) == UInt8('2')
+        @test filesize(mm) == 4
+        @test isopen(mm)
+        @test !eof(mm)
+        @test read(mm, UInt8) == UInt8('3')
+        @test read(mm, UInt8) == UInt8('\n')
+        @test eof(mm)
+        @test isopen(mm.ios)
+        @test !isopen(mm)
+        close(mm)
+        @test !isopen(mm.ios)
+    end
 end
 
 @testset "Exception handling" begin

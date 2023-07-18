@@ -14,6 +14,7 @@ function parse_file_serial(
             task_size = estimate_task_size(chunking_ctx)
             task_start = Int32(1)
             for task in Iterators.partition(eachindex(chunking_ctx.newline_positions), task_size)
+                # TRACING # chunking_ctx.id == 1 ? push!(ChunkedBase.T1, time_ns()) : push!(ChunkedBase.T2, time_ns())
                 setup_tasks!(consume_ctx, chunking_ctx, 1)
                 task_end = Int32(last(task))
                 newline_segment = @view(chunking_ctx.newline_positions.elements[task_start:task_end])
