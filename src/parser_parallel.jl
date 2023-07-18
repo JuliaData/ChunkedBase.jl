@@ -5,6 +5,7 @@ function submit_lexed_rows!(parsing_queue, consume_ctx, chunking_ctx, row_num)
     task_size = estimate_task_size(chunking_ctx)
     ntasks = cld(length(chunking_ctx.newline_positions), task_size)
     # Set the expected number of parsing tasks
+    # TRACING # chunking_ctx.id == 1 ? push!(ChunkedBase.T1, time_ns()) : push!(ChunkedBase.T2, time_ns())
     setup_tasks!(consume_ctx, chunking_ctx, ntasks)
     # Send task definitions (segment of `eols` to process) to the queue
     task_start = Int32(1)

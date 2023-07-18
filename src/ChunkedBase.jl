@@ -146,13 +146,14 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #     return nothing
 # TRACING # end
 # TRACING # function load_traces!(path)
+# TRACING #     _resize!(vv, n) = length(vv) >= n ? resize!(vv, n) : append!(vv, [UInt[] for _ in 1:n-length(vv)])
 # TRACING #     open(path, "r") do io
 # TRACING #         read!(io, resize!(IO_TASK_TIMES, read(io, UInt32)))
 # TRACING #         read!(io, resize!(LEXER_TASK_TIMES, read(io, UInt32)))
 # TRACING #         read!(io, resize!(T1, read(io, UInt32)))
 # TRACING #         read!(io, resize!(T2, read(io, UInt32)))
 # TRACING #
-# TRACING #         resize!(PARSER_TASKS_TIMES, read(io, UInt32))
+# TRACING #         _resize!(PARSER_TASKS_TIMES, read(io, UInt32))
 # TRACING #         for x in PARSER_TASKS_TIMES
 # TRACING #             read!(io, resize!(x, read(io, UInt32)))
 # TRACING #         end
