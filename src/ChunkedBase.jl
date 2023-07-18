@@ -115,11 +115,13 @@ export Lexer
 export parse_file_serial, parse_file_parallel, populate_result_buffer!
 
 # TRACING # const PARSER_TASKS_TIMES = [UInt[]]
+# TRACING # const CONSUMER_TASKS_TIMES = [UInt[]]
 # TRACING # const IO_TASK_TIMES = UInt[]
 # TRACING # const LEXER_TASK_TIMES = UInt[]
 # TRACING # const T1 = UInt[]
 # TRACING # const T2 = UInt[]
 # TRACING # get_parser_task_trace(i) = PARSER_TASKS_TIMES[i]
+# TRACING # get_consumer_task_trace(i) = CONSUMER_TASKS_TIMES[i]
 # TRACING # function clear_traces!(nworkers::Int=Threads.nthreads())
 # TRACING #     for _ in (length(PARSER_TASKS_TIMES)+1:nworkers)
 # TRACING #         push!(PARSER_TASKS_TIMES, UInt[])
@@ -129,6 +131,7 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #     empty!(T1)
 # TRACING #     empty!(T2)
 # TRACING #     foreach(empty!, PARSER_TASKS_TIMES)
+# TRACING #     foreach(empty!, CONSUMER_TASKS_TIMES)
 # TRACING #     return nothing
 # TRACING # end
 # TRACING # function dump_traces(path)
@@ -142,11 +145,15 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #         for x in PARSER_TASKS_TIMES
 # TRACING #             write(io, UInt32(length(x)), x)
 # TRACING #         end
+# TRACING #         write(io, UInt32(length(CONSUMER_TASKS_TIMES)))
+# TRACING #         for x in CONSUMER_TASKS_TIMES
+# TRACING #             write(io, UInt32(length(x)), x)
+# TRACING #         end
 # TRACING #     end
 # TRACING #     return nothing
 # TRACING # end
+# TRACING # _resize!(vv, n) = length(vv) >= n ? resize!(vv, n) : append!(vv, [UInt[] for _ in 1:n-length(vv)])
 # TRACING # function load_traces!(path)
-# TRACING #     _resize!(vv, n) = length(vv) >= n ? resize!(vv, n) : append!(vv, [UInt[] for _ in 1:n-length(vv)])
 # TRACING #     open(path, "r") do io
 # TRACING #         read!(io, resize!(IO_TASK_TIMES, read(io, UInt32)))
 # TRACING #         read!(io, resize!(LEXER_TASK_TIMES, read(io, UInt32)))
@@ -155,6 +162,10 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # TRACING #
 # TRACING #         _resize!(PARSER_TASKS_TIMES, read(io, UInt32))
 # TRACING #         for x in PARSER_TASKS_TIMES
+# TRACING #             read!(io, resize!(x, read(io, UInt32)))
+# TRACING #         end
+# TRACING #         _resize!(CONSUMER_TASKS_TIMES, read(io, UInt32))
+# TRACING #         for x in CONSUMER_TASKS_TIMES
 # TRACING #             read!(io, resize!(x, read(io, UInt32)))
 # TRACING #         end
 # TRACING #     end

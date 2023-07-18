@@ -6,12 +6,14 @@ function plot_traces()
     io_task = copy(ChunkedBase.IO_TASK_TIMES)
     lexer_task = copy(ChunkedBase.LEXER_TASK_TIMES)
     parser_tasks = filter(x->length(x)>0, ChunkedBase.PARSER_TASKS_TIMES)
+    consume_tasks = filter(x->length(x)>0, ChunkedBase.CONSUMER_TASKS_TIMES)
 
     start = Int(mapreduce(first, min, parser_tasks, init=min(io_task[1], lexer_task[1])))
 
     lexer_timing = map(x->(x - start) / (1e9), lexer_task)
     io_timing = map(x->(x - start) / (1e9), io_task)
     pa_timings = map.(x->(x - start) / (1e9), parser_tasks)
+    co_timings = map.(x->(x - start) / (1e9), consume_tasks)
     t1_timing = map(x->(x - start) / (1e9), t1)
     t2_timing = map(x->(x - start) / (1e9), t2)
 
@@ -19,7 +21,7 @@ function plot_traces()
     ends = 2:2:length(io_timing)
     GLMakie.scatter!(io_timing[ends], fill(1, length(ends)))
 
-    for (i, timing) in enumerate(vcat([lexer_timing, t1_timing, t2_timing, Float64[]], pa_timings))
+    for (i, timing) in enumerate(vcat([lexer_timing, t1_timing, t2_timing, Float64[]], pa_timings, [Float64[]], co_timings))
         GLMakie.linesegments!(timing, fill(i+1, length(timing)))
         ends = 2:2:length(timing)
         GLMakie.scatter!(timing[ends], fill(i+1, length(ends)))

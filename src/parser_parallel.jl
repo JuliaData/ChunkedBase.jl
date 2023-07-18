@@ -70,7 +70,7 @@ function process_and_consume_task(
             # consume!, not separating the result buffers per chunk could lead to data corruption if
             # the results from the 2nd chunk are ready before the 1st chunk is consumed.
             result_buf = result_buffers[task_num + (use_current_context ? 0 : tasks_per_chunk(chunking_ctx))]
-            # TRACING #  push!(trace, time_ns())
+            # TRACING # push!(trace, time_ns())
             ctx = ifelse(use_current_context, chunking_ctx, chunking_ctx_next)
             # Defined by the library using ChunkedBase via overload on the specific AbstractResultBuffer and AbstractParsingContext
             newline_segment = @view(ctx.newline_positions.elements[task_start:task_end])
@@ -78,7 +78,7 @@ function process_and_consume_task(
             # Defined by the user via overload on consume_ctx
             consume!(consume_ctx, ParsedPayload(row_num, Int(task_end - task_start), result_buf, parsing_ctx, ctx, task_start))
             task_done!(consume_ctx, ctx)
-            # TRACING #  push!(trace, time_ns())
+            # TRACING # push!(trace, time_ns())
         end
     catch e
         ce = CapturedException(e, catch_backtrace())
