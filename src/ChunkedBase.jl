@@ -6,103 +6,39 @@ using CodecZlibNG
 using NewlineLexers
 using SentinelArrays.BufferedVectors
 
-const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
+# The means through which the user can provide their own parsing logic.
+include("ParsingContexts.jl")
 
-# populate_result_buffer!(result_buf::AbstractResultBuffer, newlines::AbstractVector{Int32}, parsing_ctx::AbstractParsingContext, comment::Union{Nothing,Vector{UInt8}}=nothing, ::Type{CT}=Tuple{}) where {CT}
-function populate_result_buffer! end
-
-abstract type AbstractParsingContext end
-
-# Synchronization mechanism -- after we lexed all rows, we split them in N tasks and TaskCounter
-# in ChunkingContext will block the io/lexer to overwrite the current chunk unless workers
-# report back N times that they are done with their tasks.
+# A counter based synchronization primitive used to coordinate the parsing/consuming tasks.
 include("TaskCounters.jl")
 using .TaskCounters
 
-_comment_to_bytes(x::AbstractString) = Vector{UInt8}(x)
-_comment_to_bytes(x::Char) = _comment_to_bytes(ncodeunits(x) > 1 ? string(x) : UInt8(x))
-_comment_to_bytes(x::UInt8) = [x]
-_comment_to_bytes(x::Vector{UInt8}) = x
-_comment_to_bytes(::Nothing) = nothing
-struct ChunkingContext
-    id::Int
-    counter::TaskCounter
-    newline_positions::BufferedVector{Int32}
-    bytes::Vector{UInt8}
-    nworkers::Int
-    limit::Int
-    comment::Union{Nothing,Vector{UInt8}}
-    # combination on `id` and `buffer_refills` can be used to detect if any pointers to `bytes` are still valid
-    buffer_refills::Base.RefValue{Int}
-end
-function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}})
-    (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
-    (0 < nworkers < 256) || throw(ArgumentError("`nworkers` argument must be larger than 0 and smaller than 256."))
-    (0 <= limit <= typemax(Int)) || throw(ArgumentError("`limit` argument must be positive and smaller than 9_223_372_036_854_775_808."))
-    # TRACING #  clear_traces!(nworkers)
-    return ChunkingContext(
-        1,
-        TaskCounter(),
-        BufferedVector{Int32}(Int32[0], 1),
-        Vector{UInt8}(undef, buffersize),
-        nworkers,
-        limit,
-        _comment_to_bytes(comment),
-        Ref(0),
-    )
-end
-function ChunkingContext(ctx::ChunkingContext)
-    out = ChunkingContext(
-        ctx.id + 1,
-        TaskCounter(),
-        BufferedVector{Int32}(Vector{Int32}(undef, max(1, length(ctx.newline_positions))), 1),
-        similar(ctx.bytes),
-        ctx.nworkers,
-        ctx.limit,
-        ctx.comment,
-        Ref(0),
-    )
-    out.newline_positions.elements[1] = 0
-    return out
-end
-tasks_per_chunk(ctx::ChunkingContext) = ctx.nworkers
-total_result_buffers_count(ctx::ChunkingContext) = 2tasks_per_chunk(ctx)
-last_newline_at(ctx::ChunkingContext) = Int(last(ctx.newline_positions))
-function should_use_parallel(ctx::ChunkingContext, _force)
-    return !(
-        _force === :serial ||
-        ((_force !== :parallel) && (Threads.nthreads() == 1 || ctx.nworkers == 1 || last_newline_at(ctx) < MIN_TASK_SIZE_IN_BYTES))
-    )
-end
+# The `ChunkingContext` is used to keep track of the current chunk of data being processed
+# and to coordinate with the parsing/consuming tasks. Two `ChunkingContext` objects are used
+# to double-buffer the input.
+include("ChunkingContext.jl")
 
-# We split the detected newlines equally among thr nworkers parsing tasks, but each
-# unit of work should contain at least 16 KiB of raw bytes (MIN_TASK_SIZE_IN_BYTES).
-function estimate_task_size(ctx::ChunkingContext)
-    eols = ctx.newline_positions
-    length(eols) == 1 && return 1 # empty file
-    bytes_to_parse = last(eols)
-    rows = length(eols) # actually rows + 1
-    buffersize = length(ctx.bytes)
-    # There are 2*nworkers result buffers total, but there are nworkers tasks per chunk
-    prorated_maxtasks = ceil(Int, tasks_per_chunk(ctx) * (bytes_to_parse / buffersize))
-    # Lower bound is 2 because length(eols) == 2 => 1 row
-    # bump min rows if average row is much smaller than MIN_TASK_SIZE_IN_BYTES
-    min_rows = max(2, cld(MIN_TASK_SIZE_IN_BYTES, cld(bytes_to_parse, rows)))
-    return min(max(min_rows, cld(rows, prorated_maxtasks)), rows)
-end
-
-abstract type AbstractResultBuffer end
-
+# The `ParsedPayload` is used to pass the results of parsing to the `consume!` method. All relevant
+# information about the current chunk of data being processed is passed to `consume!` via `ParsedPayload`.
+# In case the parsed results need to be consumed in order, the `PayloadOrderer` can be used to
+# sort the payloads.
 include("payload.jl")
 
-include("exceptions.jl")
-include("read_and_lex_utils.jl")
-include("read_and_lex.jl")
+# Consuming is the means through which the parsed results are used by the end user.
 include("ConsumeContexts.jl")
 using .ConsumeContexts
 
-include("parser_serial.jl")
+# By lexing the input in advance we can detect that we got to an inconsistent state
+# (e.g. an unmatched quote at the end of the file) in which case we throw one of these exceptions.
+include("exceptions.jl")
+
+# Utilities for the coordinator task to handle the input and the newline positions.
+include("read_and_lex_utils.jl")
+include("read_and_lex.jl")
+
+# The main entrypoints of the library.
 include("parser_parallel.jl")
+include("parser_serial.jl")
 
 export ChunkingContext, tasks_per_chunk, total_result_buffers_count
 export AbstractParsingContext
@@ -113,6 +49,14 @@ export ParsedPayload, PayloadOrderer
 export SkipContext
 export Lexer
 export parse_file_serial, parse_file_parallel, populate_result_buffer!
+
+
+# By uncommenting all `# TRACING #` in the package, e.g. by turning them to `#= ... =#`,
+# you'll enable low-overhead tracing capability.
+# Before parsing, call `clear_traces!` to reset the traces, then call
+#   include("_tracing.jl") # once
+#   plot_traces() # to plot the traces
+# TODO: Port this over to be macro-based, with plotting being provided by a package extension
 
 # TRACING # const PARSER_TASKS_TIMES = [UInt[]]
 # TRACING # const CONSUMER_TASKS_TIMES = [UInt[]]

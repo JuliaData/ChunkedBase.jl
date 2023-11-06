@@ -7,6 +7,9 @@ using ..ChunkedBase: set!, dec!
 export AbstractConsumeContext, SkipContext
 export setup_tasks!, consume!, task_done!, sync_tasks, cleanup
 
+# End users should subtype this to create custom consume contexts which are then
+# used in `parse_file_parallel` and `parse_file_serial`, to dispatch on their
+# `populate_result_buffer!` method.
 abstract type AbstractConsumeContext end
 
 """
@@ -14,7 +17,7 @@ abstract type AbstractConsumeContext end
 
 Override with your `AbstractConsumeContext` to provide a custom logic for processing the parsed results in `AbstractResultBuffer`.
 The method is called from multiple tasks in parallel, just after each corresponding `task_buf` has been populated.
-`task_buf` is only filled once per chunk.
+`task_buf` is only filled once per chunk and is only accessed by one task at a time.
 
 See also [`consume!`](@ref), [`setup_tasks!`](@ref), [`setup_tasks!`](@ref), [`cleanup`](@ref), [`AbstractResultBuffer`](@ref)
 """
@@ -34,11 +37,11 @@ is considered to be entirely processed.
 This function is called just after the we're done detecting newline positions in the current
 chunk of data and we are about to submit partitions of the detected newlines to the parse/consume tasks.
 
-`ntasks` is between 1 and two times the `nworkers` agrument to `parse_file`, depeneding on
-the size of the input. Most of the time, the value is `2*nworkers` is used, but for smaller
-buffer sizes, smaller files or when handling the last bytes of the file, `ntasks` will be
-smaller as we try to ensure the minimal average tasks size if terms of bytes of input is at least
-$(Base.format_bytes(MIN_TASK_SIZE_IN_BYTES)). For `:serial` parsing mode, `ntasks` is always 1.
+`ntasks` is between 1 and `nworkers` argument to `parse_file`, depending on the size of the input.
+Most of the time, the value is `nworkers` is used, but for smaller buffer sizes, smaller files or
+when handling the last bytes of the file, `ntasks` will be smaller as we try to ensure the minimal
+average tasks size if terms of bytes of input is at least $(Base.format_bytes(MIN_TASK_SIZE_IN_BYTES)).
+For `:serial` parsing mode, `ntasks` is always 1.
 
 You should override this method when you further subdivide the amount of concurrent work on the chunk,
 e.g. when you want to process each column separately in `@spawn` tasks, in which case you'd expect

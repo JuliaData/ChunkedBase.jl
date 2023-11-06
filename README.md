@@ -28,11 +28,11 @@ function parse_file_parallel(
 ) where {CT}
 ```
 Let's break it down:
-* `lexer`s responsibility is finding newlines in the ingested chunks of data. Newlines serve as record delimiters and knowing their positions allows us to split work safely among multiple workers, which are spawned internally.
-* `parsing_ctx` provides a way for the user to dispatch on custom `populate_result_buffer!` overload and to forward configurations to it. `populate_result_buffer!` is where we take the records identified by the `lexer` and parse them into `result_buffers`.
-* `consume_ctx` after the data has been parsed, we can "consume" it (e.g. insert them into a database), `consume_ctx` allows the user to dispatch on their `consume!` method and hold any necessary state.
-* `chunking_ctx` is used to facilitate IO and work synchronization. Through this struct the user controls the size of the chunks and number spawned tasks that carry out the parsing and consuming. If there is enough data in the input, a secondary `chunking_ctx` is created internally to facilitate the double-buffering described above.
-* `result_buffers` an array of buffers results from `populate_result_buffer!` and that are passed to `consume!`. This allows the user to have multiple result formats for the with `parsing_ctx` e.g. row oriented vs column oriented buffers.
+* `lexer` controls how we find newlines in the ingested chunks of data. Newlines serve as record delimiters and knowing their positions allows us to split work safely among multiple workers, which are spawned internally. `Lexer`s are defined in the `NewlineLexers.jl` package.
+* `parsing_ctx` controls how we parse the data. It allows the user to dispatch on custom `populate_result_buffer!` overload and to forward configurations to it. `populate_result_buffer!` is where we take the records identified by the `lexer` and parse them into `result_buffers`.
+* `consume_ctx` controls how the parsed results are consumed (e.g. inserted them into a database, appended to a `DataFrame`...). `consume_ctx` allows the user to dispatch on their `consume!` method and hold any state necessary for consuming. This happens immediately after `populate_result_buffer!`.
+* `chunking_ctx` controls how the work on individual chunks of data is scheduled. It contains buffers for input bytes and found newlines. Through this struct the user controls the size of the chunks and number spawned tasks that carry out the parsing and consuming. If there is enough data in the input, a secondary `chunking_ctx` is created internally to facilitate the double-buffering described above.
+* `result_buffers` controls in which format the results are stored. These result buffers hold results from `populate_result_buffer!` and are passed to `consume!`. This allows the user to have multiple result formats for the with `parsing_ctx` e.g. row oriented vs column oriented buffers.
 
 See the docstring of `populate_result_buffer!` and `consume!` for more information about how to integrate with them.
 
@@ -102,7 +102,7 @@ end
 Let's run in on some data:
 ```julia
 julia> io = IOBuffer((("x" ^ 4095) * "\n") ^ 64); # 256KiB
-julia> print_newlines(io, 2^16, 4);
+julia> print_newlines(io, 64*1024, 4);
 # [ Info: Newlines in chunk (id:(1, 1)): [16384, 20480, 24576, 28672, 32768, 36864]
 # [ Info: Newlines in chunk (id:(1, 1)): [0, 4096, 8192, 12288, 16384]
 # [ Info: Newlines in chunk (id:(1, 1)): [36864, 40960, 45056, 49152, 53248, 57344]

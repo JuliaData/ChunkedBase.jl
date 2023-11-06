@@ -1,4 +1,9 @@
-# What the read_and_lex_task! task submits to the many parser tasks
+# What the `read_and_lex_task!` task submits to the parser tasks via a Channel
+# * task_start: first index in the newline_positions buffer the parser task should process
+# * task_end: first index in the newline_positions buffer the parser task should process
+# * row_num: the (global) row number of the first newline in the chunk
+# * task_num: the index of the task (1-based)
+# * use_current_context: whether to use the current or the next chunking context (double-buffering)
 const SubtaskMetadata = @NamedTuple{task_start::Int32, task_end::Int32, row_num::Int, task_num::Int, use_current_context::Bool}
 
 function submit_lexed_rows!(parsing_queue, consume_ctx, chunking_ctx, row_num)
@@ -90,6 +95,45 @@ function process_and_consume_task(
     end
 end
 
+"""
+    parse_file_parallel(
+        lexer::NewlineLexers.Lexer,
+        parsing_ctx::AbstractParsingContext,
+        consume_ctx::AbstractConsumeContext,
+        chunking_ctx::ChunkingContext,
+        result_buffers::Vector{<:AbstractResultBuffer},
+        ::Type{CT}=Tuple{}
+    ) where {CT} -> Nothing
+
+    Parse the file in `lexer.io` in parallel using `chunking_ctx.nworkers` tasks. User must provide
+    a `populate_result_buffer!` method which is used to parse ingested data in `chunking_ctx.bytes`, using the
+    newline positions in `chunking_ctx.newline_positions` as row boundaries into the `result_buffers`.
+    The `consume!` method is called after each `populate_result_buffer!` call, so the user can process
+    the parsed results in parallel. No `result_buffer` is accessed by more than one task at a time.
+
+    # Arguments:
+    * `lexer`: a `NewlineLexers.Lexer` object which is used to find newline positions in the input. The
+    type of the lexer affects whether the search is quote-aware or not.
+    * `parsing_ctx`: a user-provided object which is passed to `populate_result_buffer!`
+    * `consume_ctx`: a user-provided object which is passed to `consume!`
+    * `chunking_ctx`: an internal object which is used to keep track of the current chunk of data being processed
+    * `result_buffers`: a vector of user-provided objects which are used to store the parsed results
+    * `CT`: an optional, compile-time known type which is passed to `populate_result_buffer!`
+
+    # Exceptions:
+    * `UnmatchedQuoteError`: if the input ends with an unmatched quote
+    * `NoValidRowsInBufferError`: if not a single newline was found in the input buffer
+    * `CapturedException`: if an exception was thrown in one of the parser/consumer tasks
+
+    # Notes:
+    * The `chunking_ctx` is assumed to be filled with data whose newline positions are already detected, e.g.
+    by calling `read_and_lex!` with the `lexer` object on it.
+    * If the input is bigger than `chunking_ctx.bytes`, secondary `chunking_ctx` object will be used to
+    double-buffer the input, which will allocate a new buffer of the same size as `chunking_ctx.bytes`.
+    * This function spawns `chunking_ctx.nworkers` + 1 tasks.
+
+    See also [`populate_result_buffer!`](@ref), [`consume!`](@ref), [`parse_file_serial`](@ref).
+"""
 function parse_file_parallel(
     lexer::Lexer,
     parsing_ctx::AbstractParsingContext,

@@ -12,7 +12,7 @@ function readbytesall!(io::IO, buf, n::Integer)
 end
 
 function prepare_buffer!(io::IO, buf::Vector{UInt8}, last_newline_at::Int)
-    ptr = pointer(buf)
+    ptr = pointer(buf) # `buf` is rooted in ChunkingContext, so we shouldn't need to GC.@preserve it
     buffersize = length(buf)
     @inbounds if last_newline_at == 0
         # This is the first time we saw the buffer, we'll fill it up and skip leading BOM
@@ -34,8 +34,10 @@ function prepare_buffer!(io::IO, buf::Vector{UInt8}, last_newline_at::Int)
 end
 
 function check_any_valid_rows(lexer, chunking_ctx)
+    # we always prepend a 0 to newline_positions as a fake newline from previous chunk
+    # thus there must be at least 2 elements in newline_positions to have a valid row
     eols = chunking_ctx.newline_positions
-    if (length(eols) == 0 || (length(eols) == 1 && first(eols) == 0)) && !eof(lexer.io) # TODO: check done instead of eof?
+    if (length(eols) == 0 || (length(eols) == 1 && first(eols) == 0)) && !eof(lexer.io)
         close(lexer.io)
         throw(NoValidRowsInBufferError(length(chunking_ctx.bytes)))
     end
@@ -57,7 +59,7 @@ function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newlin
     @assert !lexer.done
 
     empty!(chunking_ctx.newline_positions)
-    push!(chunking_ctx.newline_positions, Int32(0))
+    push!(chunking_ctx.newline_positions, Int32(0)) # fake newline from previous chunk
     if eof(lexer.io) # Catches the empty input case
         lexer.done = true
         return nothing
@@ -65,7 +67,6 @@ function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newlin
 
     bytes_read_in = prepare_buffer!(lexer.io, chunking_ctx.bytes, _last_newline_at)
     chunking_ctx.buffer_refills[] += 1
-    # _last_newline_at == 0 && bytes_read_in == 0 && return nothing # only BOM / whitespace in the buffer
 
     start_pos = _last_newline_at == 0 ? 1 : length(chunking_ctx.bytes) - _last_newline_at + 1
     end_pos = start_pos + bytes_read_in - 1
@@ -78,6 +79,7 @@ function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newlin
     return nothing
 end
 
+# Separate initial read and lex function for package that sniff the file first (e.g. to detect newline character)
 function initial_read!(io, chunking_ctx, skip_leading_whitespace=false)
     # First ingestion of raw bytes from io
     buf = chunking_ctx.bytes
@@ -87,7 +89,6 @@ function initial_read!(io, chunking_ctx, skip_leading_whitespace=false)
     bytes_read_in = readbytesall!(io, buf, buffersize)
     chunking_ctx.buffer_refills[] += 1
 
-    # bytes_read_in = _skip_over_initial_whitespace_and_bom!(io, buf, bytes_read_in)
     starts_with_bom = bytes_read_in > 2 && _hasBOM(buf)
 
     if skip_leading_whitespace
@@ -107,7 +108,7 @@ function initial_read!(io, chunking_ctx, skip_leading_whitespace=false)
 
         # We found a non-space byte -- we'll left-shift the spaces before it so that the buffer
         # begins with a valid value and we'll try to refill the rest of the buffer.
-        # If first_valid_byte was already at the beginnig of the buffer, we don't have to do
+        # If first_valid_byte was already at the beginning of the buffer, we don't have to do
         # anything.
         skip_over = first_valid_byte - 1
         if skip_over > 0

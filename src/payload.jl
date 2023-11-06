@@ -4,12 +4,12 @@
 
 # What we send to the consume! method
 struct ParsedPayload{B, C<:AbstractParsingContext}
-    row_num::Int
-    len::Int
-    results::B
-    parsing_ctx::C
-    chunking_ctx::ChunkingContext
-    eols_buffer_index::Int32
+    row_num::Int                  # row number of the first row in the payload
+    len::Int                      # number of rows in the payload
+    results::B                    # parsed result buffer
+    parsing_ctx::C                # library-provided data (to distinguish JSONL and CSV processing)
+    chunking_ctx::ChunkingContext # internal data to facilitate chunking and synchronization
+    eols_buffer_index::Int32      # index of the [e]nd-[o]f-[l]ine[s] buffer in the chunking_ctx
 end
 Base.length(payload::ParsedPayload) = payload.len
 last_row(payload::ParsedPayload) = payload.row_num + length(payload) - 1
@@ -25,6 +25,7 @@ function insertsorted!(arr::Vector{T}, x::T, by=identity) where {T}
 end
 
 # Like a Channel, but when you take! a Payload from it, it will be the next one in order
+# take! is not threadsafe
 mutable struct PayloadOrderer{B, C<:AbstractParsingContext} <: AbstractChannel{ParsedPayload{B,C}}
     queue::Channel{ParsedPayload{B,C}}
     expected_row::Int
@@ -41,6 +42,7 @@ function _reenqueue_ordered!(queue::Channel{T}, waiting_room::Vector{T}, payload
         payload = first(waiting_room)
         if payload.row_num == (nrows + row)
             put!(queue, popfirst!(waiting_room))
+            row = payload.row_num
         else
             break
         end
@@ -51,10 +53,10 @@ function _reorder!(queue::Channel{T}, waiting_room::Vector{T}, payload::T, expec
     row = payload.row_num
     if row == expected_row
         _reenqueue_ordered!(queue, waiting_room, payload)
-        return false
+        return false # needs no reordering
     end
     insertsorted!(waiting_room, payload, x->x.row_num)
-    return true
+    return true # needs reordering
 end
 
 Base.put!(o::PayloadOrderer{B,C}, x::ParsedPayload{B,C}) where {B,C} = put!(o.queue, x)
