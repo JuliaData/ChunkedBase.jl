@@ -1,7 +1,4 @@
 # ChunkedBase.jl
-<!--
-The package provides a foundational structure for parallel processing of chunked data. It handles ingestion of data chunks and the distribution/synchronization
-of work that happens on these chunks. It is designed to be extended by other packages, such as `ChunkedCSV.jl` and `ChunkedJSONL.jl`, who control *how* the data is parsed and consumed. -->
 
 The package handles ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came to existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to by extended by packages like these. It is a package used to write parser packages.
 
