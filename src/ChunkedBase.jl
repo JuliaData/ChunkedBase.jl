@@ -9,7 +9,7 @@ using SentinelArrays.BufferedVectors
 # The means through which the user can provide their own parsing logic.
 include("ParsingContexts.jl")
 
-# A counter based synchronization primitive used to coordinate the parsing/consuming tasks.
+# A counter-based synchronization primitive that is used to coordinate the parsing/consuming tasks.
 include("TaskCounters.jl")
 using .TaskCounters
 

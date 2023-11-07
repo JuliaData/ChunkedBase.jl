@@ -116,7 +116,7 @@ end
     type of the lexer affects whether the search is quote-aware or not.
     * `parsing_ctx`: a user-provided object which is passed to `populate_result_buffer!`
     * `consume_ctx`: a user-provided object which is passed to `consume!`
-    * `chunking_ctx`: an internal object which is used to keep track of the current chunk of data being processed
+    * `chunking_ctx`: an internal object that is used to keep track of the current chunk of data being processed
     * `result_buffers`: a vector of user-provided objects which are used to store the parsed results
     * `CT`: an optional, compile-time known type which is passed to `populate_result_buffer!`
 
@@ -128,7 +128,7 @@ end
     # Notes:
     * The `chunking_ctx` is assumed to be filled with data whose newline positions are already detected, e.g.
     by calling `read_and_lex!` with the `lexer` object on it.
-    * If the input is bigger than `chunking_ctx.bytes`, secondary `chunking_ctx` object will be used to
+    * If the input is bigger than `chunking_ctx.bytes`, a secondary `chunking_ctx` object will be used to
     double-buffer the input, which will allocate a new buffer of the same size as `chunking_ctx.bytes`.
     * This function spawns `chunking_ctx.nworkers` + 1 tasks.
 

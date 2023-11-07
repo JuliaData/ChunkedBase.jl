@@ -20,7 +20,7 @@ function _hasBOM(bytes::Vector{UInt8})
     return @inbounds bytes[1] == 0xef && bytes[2] == 0xbb && bytes[3] == 0xbf
 end
 
-# Either we were looking for `\n` as a newline and then an empty row has
+# Either we were looking for `\n` as a newline char and then an empty row has
 # two newline positions next to each other or there is a single byte between them
 # and it's `\r`. Or we were looking for `\r` in which case we only consider two
 # neighboring `\r` as an empty row.

@@ -1,19 +1,19 @@
 # ChunkedBase.jl
 
-The package handles ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came to existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to be extended by packages like these. It is a package used to write parser packages.
+The package handles the ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came into existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to be extended by packages like these. It is a package used to write parser packages.
 
 Specifically, `ChunkedBase.jl` spawns one task which handles IO and behaves as a coordinator, and a configurable number of worker tasks.
-Both CSV and JSONL are textual formats which delimit records by newlines which makes newlines an ideal point to distribute work. One the coordinator task we ingest bytes into preallocated buffer and then use `NewlineLexers.jl` package to quickly find newlines in it. In turn these newlines are distributed among worker tasks and the coordinator immediately starts working a secondary buffer, while the first one is being processed by the workers.
+Both CSV and JSONL are textual formats that delimit records by newlines which makes newlines an ideal point to distribute work. One the coordinator task we ingest bytes into a preallocated buffer and then use `NewlineLexers.jl` package to quickly find newlines in it. In turn, these newlines are distributed among worker tasks and the coordinator immediately starts working on a secondary buffer, while the first one is being processed by the workers.
 
 The process looks something like this, with the coordinator task at the bottom:
 
 | ![Diagram](/docs/diagrams/chunked_base.png) |
 |:--:|
-| *The coordinator synchronizes with workers using a counter behind a mutex (there is one per buffer). It splits the newlines into N segments, distributes them and increments the counter by N. After the coordinator distributes work, it starts to process the second chunk of data, while the first buffer is being worked on. There is handoff happening between the two buffers -- we need to copy the bytes after the last newline from the first buffer to the second. Each worker decrements after the `consume!` is done, and the coordinator will wait for the counter to reach 0 before it overwrites the buffer with new data.* |
+| *The coordinator synchronizes with workers using a counter behind a mutex (there is one per buffer). It splits the newlines into N segments, distributes them, and increments the counter by N. After the coordinator distributes work, it starts to process the second chunk of data, while the first buffer is being worked on. There is a handoff happening between the two buffers -- we need to copy the bytes after the last newline from the first buffer to the second. Each worker decrements after the `consume!` is done, and the coordinator will wait for the counter to reach 0 before it overwrites the buffer with new data.* |
 
-Packages like `ChunkedCSV.jl` and `ChunkedJSON.jl` hook into this structure by defining their own `populate_result_buffer!` methods that parse the records they were assigned into their custom `Result` buffers which are then handed to the `consume!` method (e.g. to be inserted to database).
+Packages like `ChunkedCSV.jl` and `ChunkedJSON.jl` hook into this structure by defining their own `populate_result_buffer!` methods that parse the records they were assigned into their custom `Result` buffers which are then handed to the `consume!` method (e.g. to be inserted into a database).
 
-The main entry point of this package is the `parse_file_parallel` function, which accepts a number of "context" arguments, each controlling different aspect of the process:
+The main entry point of this package is the `parse_file_parallel` function, which accepts several "context" arguments, each controlling a different aspect of the process:
 ```julia
 function parse_file_parallel(
     lexer::NewlineLexers.Lexer,
@@ -27,8 +27,8 @@ function parse_file_parallel(
 Let's break it down:
 * `lexer` controls how we find newlines in the ingested chunks of data. Newlines serve as record delimiters and knowing their positions allows us to split work safely among multiple workers, which are spawned internally. `Lexer`s are defined in the `NewlineLexers.jl` package.
 * `parsing_ctx` controls how we parse the data. It allows the user to dispatch on custom `populate_result_buffer!` overload and to forward configurations to it. `populate_result_buffer!` is where we take the records identified by the `lexer` and parse them into `result_buffers`.
-* `consume_ctx` controls how the parsed results are consumed (e.g. inserted them into a database, appended to a `DataFrame`...). `consume_ctx` allows the user to dispatch on their `consume!` method and hold any state necessary for consuming. This happens immediately after `populate_result_buffer!`.
-* `chunking_ctx` controls how the work on individual chunks of data is scheduled. It contains buffers for input bytes and found newlines. Through this struct the user controls the size of the chunks and number spawned tasks that carry out the parsing and consuming. If there is enough data in the input, a secondary `chunking_ctx` is created internally to facilitate the double-buffering described above.
+* `consume_ctx` controls how the parsed results are consumed (e.g. inserted into a database, appended to a `DataFrame`...). `consume_ctx` allows the user to dispatch on their `consume!` method and hold any state necessary for consumption. This happens immediately after `populate_result_buffer!`.
+* `chunking_ctx` controls how the work on individual chunks of data is scheduled. It contains buffers for input bytes and found newlines. Through this struct the user controls the size of the chunks and the number of spawned tasks that carry out the parsing and consuming. If there is enough data in the input, a secondary `chunking_ctx` is created internally to facilitate the double-buffering described above.
 * `result_buffers` controls in which format the results are stored. These result buffers hold results from `populate_result_buffer!` and are passed to `consume!`. This allows the user to have multiple result formats for the with `parsing_ctx` e.g. row oriented vs column oriented buffers.
 
 See the docstring of `populate_result_buffer!` and `consume!` for more information about how to integrate with them.
@@ -117,6 +117,6 @@ julia> print_newlines(io, 64*1024, 4);
 # [ Info: Newlines in chunk (id:(2, 2)): [36864, 40960, 45056, 49152, 53248, 57344]
 # [ Info: Newlines in chunk (id:(2, 2)): [57344, 61440, 65536]
 ```
-Behind the scenes, `ChunkedBase.jl` was using two 64KiB buffers, finding newlines in them, and splitting the found newlines among 4 tasks. We can see that each of the buffers (identified by the first number in `id` tuple) was refilled two times (refill number is the second element of the tuple).
-The way we setup our data, there should be one newline every 4KiB of input, so we'd expect 16 newlines per chunk, but we could see that there are 20 numbers reported per chunk -- this is because the first element of the newline segment we send to the tasks is either 0 or the end of the previous sub-chunk, so we get 4 duplicated elements.
+Behind the scenes, `ChunkedBase.jl` was using two 64KiB buffers, finding newlines in them, and splitting the found newlines among 4 tasks. We can see that each of the buffers (identified by the first number in the `id` tuple) was refilled two times (the refill number is the second element of the tuple).
+The way we set up our data, there should be one newline every 4KiB of input, so we'd expect 16 newlines per chunk, but we could see that there are 20 numbers reported per chunk -- this is because the first element of the newline segment we send to the tasks is either 0 or the end of the previous sub-chunk, so we get 4 duplicated elements.
 

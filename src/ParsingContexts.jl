@@ -8,7 +8,7 @@
         ::Type{CT}=Tuple{}
     ) where {CT}
 
-    Override with your `AbstractParsingContext` to provide a custom logic for parsing the input bytes
+    Override with your `AbstractParsingContext` to provide custom logic for parsing the input bytes
     in `parsing_ctx.bytes` between the newline positions in `newline_segment` into `result_buf`.
     The method is called from multiple tasks in parallel, each having a different `newline_segment`,
     some sharing the same `parsing_ctx.bytes`. The `result_buf` is only accessed by one task at a time.
@@ -16,16 +16,16 @@
     # Arguments:
     * `result_buf`: a user-provided object which is meant to store the parsing results from this function
     * `newline_segment`: a vector of newline positions in `bytes` which delimit the rows of the input.
-    * `parsing_ctx`: a user-provided object which is used to dispatch to this method and carry parsing specific config
+    * `parsing_ctx`: a user-provided object that is used to dispatch to this method and carry parsing specific config
     * `bytes`: the raw bytes ingested from the input
     * `comment`: the comment prefix to skip, if any
     * `CT`: an optional, compile-time known object which was passed to `parse_file_parallel` / `parse_file_serial`
 
     # Notes:
-    Each consecutive pair of `newline_segment` values defines and exclusive range of bytes in `bytes` which
+    Each consecutive pair of `newline_segment` values defines an exclusive range of bytes in `bytes` which
     constitutes a single row.
 
-    The range needs to be treated as exclusive because we add a fictional newline at the beginning at the chunk
+    The range needs to be treated as exclusive because we add a fictional newline at the beginning of the chunk
     at position 0 and past the end of the file if it doesn't end on a newline.
     A safe way of processing each row would be e.g.:
 
