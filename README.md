@@ -1,6 +1,6 @@
 # ChunkedBase.jl
 
-The package handles ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came to existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to by extended by packages like these. It is a package used to write parser packages.
+The package handles ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came to existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to be extended by packages like these. It is a package used to write parser packages.
 
 Specifically, `ChunkedBase.jl` spawns one task which handles IO and behaves as a coordinator, and a configurable number of worker tasks.
 Both CSV and JSONL are textual formats which delimit records by newlines which makes newlines an ideal point to distribute work. One the coordinator task we ingest bytes into preallocated buffer and then use `NewlineLexers.jl` package to quickly find newlines in it. In turn these newlines are distributed among worker tasks and the coordinator immediately starts working a secondary buffer, while the first one is being processed by the workers.
