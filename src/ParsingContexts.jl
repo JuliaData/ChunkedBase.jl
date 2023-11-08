@@ -42,11 +42,24 @@
     ```
 """
 function populate_result_buffer! end
+"""
+    AbstractParsingContext
 
-# Users should subtype this to create custom parsing contexts variables which are
-# then used in `parse_file_parallel` / `parse_file_serial`, to dispatch on their
-# `populate_result_buffer!` method.
+Users should subtype this to create custom parsing contexts variables which are
+then used in `parse_file_parallel` / `parse_file_serial`, to dispatch on their
+`populate_result_buffer!` method.
+
+# See also:
+- [`parse_file_parallel`](@ref), [`parse_file_serial`](@ref), [`populate_result_buffer!`](@ref)
+"""
 abstract type AbstractParsingContext end
-# Users should subtype this to create custom result buffer objects to store the
-# parsed results in `populate_result_buffer!`.
+"""
+    AbstractResultBuffer
+
+Users should subtype this to create custom result buffer objects to store the
+parsed results in `populate_result_buffer!`.
+
+# See also:
+- [`parse_file_parallel`](@ref), [`parse_file_serial`](@ref), [`populate_result_buffer!`](@ref)
+"""
 abstract type AbstractResultBuffer end

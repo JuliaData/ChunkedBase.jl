@@ -1,4 +1,5 @@
-# When splitting the work among multiple tasks, each task should have at least this many bytes of input
+# When splitting the work among multiple tasks, we aim for each task to have at least this
+# many bytes of input to work on.
 # This is to avoid having too many tasks with too little work to do.
 # TODO: make this configurable and find a good default (the current 16 KiB is a guess)
 const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
@@ -9,8 +10,39 @@ _comment_to_bytes(x::UInt8) = [x]
 _comment_to_bytes(x::Vector{UInt8}) = x
 _comment_to_bytes(::Nothing) = nothing
 
-# Holds a byte buffer and newline positions for a single chunk of the input file.
-# The newline positions are used to split the chunk into tasks for parallel parsing.
+"""
+    ChunkingContext(
+        buffersize::Integer,
+        nworkers::Integer,
+        limit::Integer,
+        comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}}
+    ) -> ChunkingContext
+
+A context object used to coordinate parallel parsing of a single file, chunk by chunk.
+
+The user can use this object to specify the size of the byte buffer(s) to allocate, the
+number of worker tasks to spawn and the maximum number of rows to parse in `parse_file_parallel`.
+
+# Arguments:
+- `buffersize`: the size of the byte buffer to allocate .
+    If the input is bigger than `buffersize`, a secondary `ChunkingContext` object will be used to
+    double-buffer the input, which will allocate a new buffer of the same size as `buffersize`.
+- `nworkers`: the number of worker tasks that should be spawned in `parse_file_parallel`
+- `limit`: the maximum number of rows to parse, see `limit_eols!`
+- `comment`: the comment prefix to skip, if any
+
+# Notes:
+- One can use the `id` and `buffer_refills` fields to uniquely identify a chunk of input.
+The `id` field is necessary because we internally create a secondary `ChunkingContext` object, with
+`id` equal to the `id` of the original `ChunkingContext` + 1.
+- The `counter` field is used to synchronize the parser/consumer tasks.
+- The `newline_positions` field is used to store the newline positions in the input.
+- The `bytes` field is used to store the raw bytes ingested from the input.
+- `comment` can be used to skip the *initial* comment lines in the `skip_rows_init!`. This value is also passed to `populate_result_buffer!` for user to apply handle commented rows in the middle of the file during parsing (`_startswith` could be used to do the check).
+
+# See also:
+- [`parse_file_parallel`](@ref), [`parse_file_serial`](@ref)
+"""
 struct ChunkingContext
     id::Int                                  # id of the chunking context (1 or 2)
     counter::TaskCounter                     # synchronization mechanism to coordinate parsing
@@ -65,15 +97,18 @@ function should_use_parallel(ctx::ChunkingContext, _force)
     )
 end
 
-# We split the detected newlines equally among thr nworkers parsing tasks, but each
-# unit of work should contain at least 16 KiB of raw bytes (MIN_TASK_SIZE_IN_BYTES).
+# Instead of splitting the newlines among `nworker` tasks equally, we try to ensure that each task
+# has at least `MIN_TASK_SIZE_IN_BYTES` bytes of input to work on. For smaller inputs or for
+# the last, trialing bytes of a bigger file, there won't be enough newlines to utilize each
+# of the `nworkers` tasks properly, so we'll send out fewer chunks of work that are bigger to
+# the parsing queue.
 function estimate_task_size(ctx::ChunkingContext)
     eols = ctx.newline_positions
     length(eols) == 1 && return 1 # empty file
     bytes_to_parse = last(eols)
     rows = length(eols) # actually rows + 1
     buffersize = length(ctx.bytes)
-    # There are 2*nworkers result buffers total, but there are nworkers tasks per chunk
+    # There are `2*nworkers` result buffers total, but there are `nworkers` tasks per chunk
     prorated_maxtasks = ceil(Int, tasks_per_chunk(ctx) * (bytes_to_parse / buffersize))
     # Lower bound is 2 because length(eols) == 2 => 1 row
     # bump min rows if average row is much smaller than MIN_TASK_SIZE_IN_BYTES

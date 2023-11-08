@@ -82,6 +82,13 @@ _startswith(s::AbstractVector{UInt8}, prefix::AbstractVector{UInt8}) = _startswi
 _startswith(s, soff, prefix::Nothing) = false
 _startswith(s, prefix::Nothing) = false
 
+# Skip rows at the beginning of the file, optionally skipping empty rows as well.
+# If the inputs has fewer lines than `rows_to_skip`, we skip the whole input.
+# If we exhaust the buffer during skipping, we refill it and continue skipping.
+# If we specify comment in in `chunking_ctx`, we skip commented rows as well.
+# If we specify `ignoreemptyrows=true`, we skip empty rows as well.
+# If we'are skipping empty rows and/or comments, we might skip more rows than `rows_to_skip`,
+# we'll continue skipping until we find a non-empty, non-commented row.
 function skip_rows_init!(lexer, chunking_ctx, rows_to_skip, ignoreemptyrows=false)
     input_is_empty = length(chunking_ctx.newline_positions) == 1
     input_is_empty && (return 0)
