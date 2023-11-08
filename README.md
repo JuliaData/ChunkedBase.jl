@@ -1,9 +1,9 @@
 # ChunkedBase.jl
 
-The package handles the ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came into existence while refactoring the `ChunkedCSV.jl` and `ChunkedJSON.jl` packages and was designed to be extended by packages like these. It is a package used to write parser packages.
+The package handles the ingestion of data chunks and the distribution & synchronization of work that happens on these chunks in parallel. It came into existence while refactoring the [`ChunkedCSV.jl`](https://github.com/RelationalAI/ChunkedCSV.jl) and [`ChunkedJSONL.jl`](https://github.com/RelationalAI/ChunkedJSONL.jl) packages and was designed to be extended by packages like these. It is a package used to write parser packages.
 
 Specifically, `ChunkedBase.jl` spawns one task which handles IO and behaves as a coordinator, and a configurable number of worker tasks.
-Both CSV and JSONL are textual formats that delimit records by newlines which makes newlines an ideal point to distribute work. One the coordinator task we ingest bytes into a preallocated buffer and then use `NewlineLexers.jl` package to quickly find newlines in it. In turn, these newlines are distributed among worker tasks and the coordinator immediately starts working on a secondary buffer, while the first one is being processed by the workers.
+Both CSV and JSONL are textual formats that delimit records by newlines which makes newlines an ideal point to distribute work. One the coordinator task we ingest bytes into a preallocated buffer and then use [`NewlineLexers.jl`](https://github.com/JuliaData/NewlineLexers.jl) package to quickly find newlines in it. In turn, these newlines are distributed among worker tasks and the coordinator immediately starts working on a secondary buffer, while the first one is being processed by the workers. The coordinator task switches back and forth between these two buffers so that lexing can always proceed while the workers are consuming results, ensuring that there is never a gap in available lexed data to consume, keeping the throughput maximized over all N tasks. We refer to this as double-buffering.
 
 The process looks something like this, with the coordinator task at the bottom:
 
@@ -42,7 +42,7 @@ using ChunkedBase
 using NewlineLexers: Lexer
 
 # Our chunked processor doesn't require any settings nor does it need to maintain
-# any additional state we'll define our `ParsingContext` and `ConsumeContext` only
+# any additional state, so we'll define our `ParsingContext` and `ConsumeContext` only
 # for dispatch reasons.
 struct ParsingContext <: AbstractParsingContext end
 struct ConsumeContext <: AbstractConsumeContext end
@@ -61,7 +61,7 @@ function ChunkedBase.populate_result_buffer!(
     ::Type=Tuple{}
 )
     resize!(result_buf.newlines_in_chunk, length(newlines_segment))
-    result_buf.newlines_in_chunk .= copy(newlines_segment)
+    result_buf.newlines_in_chunk .= newlines_segment
     return nothing
 end
 
@@ -96,7 +96,7 @@ function print_newlines(io, buffersize, nworkers)
     return nothing
 end
 ```
-Let's run in on some data:
+Let's run it on some data:
 ```julia
 julia> io = IOBuffer((("x" ^ 4095) * "\n") ^ 64); # 256KiB
 julia> print_newlines(io, 64*1024, 4);
@@ -118,5 +118,5 @@ julia> print_newlines(io, 64*1024, 4);
 # [ Info: Newlines in chunk (id:(2, 2)): [57344, 61440, 65536]
 ```
 Behind the scenes, `ChunkedBase.jl` was using two 64KiB buffers, finding newlines in them, and splitting the found newlines among 4 tasks. We can see that each of the buffers (identified by the first number in the `id` tuple) was refilled two times (the refill number is the second element of the tuple).
-The way we set up our data, there should be one newline every 4KiB of input, so we'd expect 16 newlines per chunk, but we could see that there are 20 numbers reported per chunk -- this is because the first element of the newline segment we send to the tasks is either 0 or the end of the previous sub-chunk, so we get 4 duplicated elements.
+The way we set up our data, there should be one newline every 4KiB of input, so we'd expect 16 newlines per chunk, but we could see that there are 20 numbers reported per chunk -- each newline segment we send to the tasks starts with the last newline position from the previous segment, or 0 for the first segment, so we get 4 duplicated elements in this case.
 
