@@ -11,7 +11,7 @@ The process looks something like this, with the coordinator task at the bottom:
 |:--:|
 | *The coordinator synchronizes with workers using a counter behind a mutex (there is one per buffer). It splits the newlines into N segments, distributes them, and increments the counter by N. After the coordinator distributes work, it starts to process the second chunk of data, while the first buffer is being worked on. There is a handoff happening between the two buffers -- we need to copy the bytes after the last newline from the first buffer to the second. Each worker decrements after the `consume!` is done, and the coordinator will wait for the counter to reach 0 before it overwrites the buffer with new data.* |
 
-Packages like `ChunkedCSV.jl` and `ChunkedJSON.jl` hook into this structure by defining their own `populate_result_buffer!` methods that parse the records they were assigned into their custom `Result` buffers which are then handed to the `consume!` method (e.g. to be inserted into a database).
+Packages like `ChunkedCSV.jl` and `ChunkedJSONL.jl` hook into this structure by defining their own `populate_result_buffer!` methods that parse the records they were assigned into their custom `Result` buffers which are then handed to the `consume!` method (e.g. to be inserted into a database).
 
 The main entry point of this package is the `parse_file_parallel` function, which accepts several "context" arguments, each controlling a different aspect of the process:
 ```julia

@@ -1,6 +1,6 @@
 # When splitting the work among multiple tasks, we aim for each task to have at least this
-# many bytes of input to work on.
-# This is to avoid having too many tasks with too little work to do.
+# many bytes of input to work on (even if it means that some tasks will have nothing to process)
+# This is to avoid overhead from too many task switches.
 # TODO: make this configurable and find a good default (the current 16 KiB is a guess)
 const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
 
@@ -39,6 +39,8 @@ The `id` field is necessary because we internally create a secondary `ChunkingCo
 - The `newline_positions` field is used to store the newline positions in the input.
 - The `bytes` field is used to store the raw bytes ingested from the input.
 - `comment` can be used to skip the *initial* comment lines in the `skip_rows_init!`. This value is also passed to `populate_result_buffer!` for user to apply handle commented rows in the middle of the file during parsing (`_startswith` could be used to do the check).
+- The `buffersize` should be large enough to fit the longest row in the input, otherwise the lexer will fail.
+- The `buffersize` should be chosen such that each of the `nworkers` tasks has enough bytes to work on. Using 1MiB per task seems to work reasonably well in practice.
 
 # See also:
 - [`parse_file_parallel`](@ref), [`parse_file_serial`](@ref)
