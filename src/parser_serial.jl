@@ -21,6 +21,10 @@ function parse_file_serial(
     result_buf::AbstractResultBuffer,
     ::Type{CT}=Tuple{},
 ) where {CT}
+    # In case we were given an uninitialized chunking_ctx, we need to fill it first
+    if chunking_ctx.buffer_refills[] == 0 && !lexer.done
+        read_and_lex!(lexer, chunking_ctx)
+    end
     row_num = 1
     _comment = chunking_ctx.comment
     try

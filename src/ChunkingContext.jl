@@ -27,9 +27,9 @@ number of worker tasks to spawn and the maximum number of rows to parse in `pars
 - `buffersize`: the size of the byte buffer to allocate .
     If the input is bigger than `buffersize`, a secondary `ChunkingContext` object will be used to
     double-buffer the input, which will allocate a new buffer of the same size as `buffersize`.
-- `nworkers`: the number of worker tasks that should be spawned in `parse_file_parallel`
-- `limit`: the maximum number of rows to parse, see `limit_eols!`
-- `comment`: the comment prefix to skip, if any
+- `nworkers`: the number of worker tasks that should be spawned in `parse_file_parallel`.
+- `limit`: the maximum number of rows to parse, see `limit_eols!`, by default no limit is set.
+- `comment`: the comment prefix to skip, if any. By default no comment prefix is skipped.
 
 # Notes:
 - One can use the `id` and `buffer_refills` fields to uniquely identify a chunk of input.
@@ -58,7 +58,7 @@ struct ChunkingContext
     # number of times we refilled the buffer, can be combined with `id` to uniquely identify a chunk
     buffer_refills::Base.RefValue{Int}
 end
-function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}})
+function ChunkingContext(buffersize::Integer, nworkers::Integer, limit::Integer=0, comment::Union{Nothing,UInt8,String,Char,Vector{UInt8}}=nothing)
     (4 <= buffersize <= typemax(Int32)) || throw(ArgumentError("`buffersize` argument must be larger than 4 and smaller than 2_147_483_648 bytes."))
     (0 < nworkers < 256) || throw(ArgumentError("`nworkers` argument must be larger than 0 and smaller than 256."))
     (0 <= limit <= typemax(Int)) || throw(ArgumentError("`limit` argument must be positive and smaller than 9_223_372_036_854_775_808."))
@@ -101,7 +101,7 @@ end
 
 # Instead of splitting the newlines among `nworker` tasks equally, we try to ensure that each task
 # has at least `MIN_TASK_SIZE_IN_BYTES` bytes of input to work on. For smaller inputs or for
-# the last, trialing bytes of a bigger file, there won't be enough newlines to utilize each
+# the last, trailing bytes of a bigger file, there won't be enough newlines to utilize each
 # of the `nworkers` tasks properly, so we'll send out fewer chunks of work that are bigger to
 # the parsing queue.
 function estimate_task_size(ctx::ChunkingContext)

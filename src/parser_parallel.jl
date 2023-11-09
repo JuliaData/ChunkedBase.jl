@@ -126,8 +126,8 @@ end
     * `CapturedException`: if an exception was thrown in one of the parser/consumer tasks
 
     # Notes:
-    * The `chunking_ctx` is assumed to be filled with data whose newline positions are already detected, e.g.
-    by calling `read_and_lex!` with the `lexer` object on it.
+    * You can initialize the `chunking_ctx` yourself using `read_and_lex!` or with `initial_read!` + `initial_lex!`
+    which gives you the opportunity to sniff the first chunk of data before you call `parse_file_parallel`.
     * If the input is bigger than `chunking_ctx.bytes`, a secondary `chunking_ctx` object will be used to
     double-buffer the input, which will allocate a new buffer of the same size as `chunking_ctx.bytes`.
     * This function spawns `chunking_ctx.nworkers` + 1 tasks.
@@ -144,6 +144,10 @@ function parse_file_parallel(
 ) where {CT}
     @assert chunking_ctx.id == 1
     length(result_buffers) != total_result_buffers_count(chunking_ctx) && ArgumentError("Expected $(total_result_buffers_count(chunking_ctx)) result buffers, got $(length(result_buffers)).")
+    # In case we were given an uninitialized chunking_ctx, we need to fill it first
+    if chunking_ctx.buffer_refills[] == 0 && !lexer.done
+        read_and_lex!(lexer, chunking_ctx)
+    end
 
     parsing_queue = Channel{SubtaskMetadata}(Inf)
     if lexer.done

@@ -54,7 +54,9 @@ function handle_file_end!(lexer::Lexer, eols, end_pos)
     end
 end
 
-
+# Fill the chunking_ctx.bytes buffer with bytes from the input and find newlines in it
+# The trailing bytes between the last newline and the end of the buffer are copied to the
+# beginning of the buffer and the rest of the buffer is refilled.
 function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newline_at=last_newline_at(chunking_ctx))
     @assert !lexer.done
 
@@ -80,6 +82,7 @@ function read_and_lex!(lexer::Lexer, chunking_ctx::ChunkingContext, _last_newlin
 end
 
 # Separate initial read and lex function for package that sniff the file first (e.g. to detect newline character)
+# This function should be paired with `initial_lex!` to properly initialize the chunking context
 function initial_read!(io, chunking_ctx, skip_leading_whitespace=false)
     # First ingestion of raw bytes from io
     buf = chunking_ctx.bytes

@@ -16,7 +16,7 @@ Packages like `ChunkedCSV.jl` and `ChunkedJSONL.jl` hook into this structure by 
 The main entry point of this package is the `parse_file_parallel` function, which accepts several "context" arguments, each controlling a different aspect of the process:
 ```julia
 function parse_file_parallel(
-    lexer::NewlineLexers.Lexer,
+    lexer::Lexer,
     parsing_ctx::AbstractParsingContext,
     consume_ctx::AbstractConsumeContext,
     chunking_ctx::ChunkingContext,
@@ -39,7 +39,6 @@ Since `ChunkedBase.jl` handles newline detection automatically, a very simple ch
 
 ```julia
 using ChunkedBase
-using NewlineLexers: Lexer
 
 # Our chunked processor doesn't require any settings nor does it need to maintain
 # any additional state, so we'll define our `ParsingContext` and `ConsumeContext` only
@@ -86,12 +85,10 @@ function print_newlines(io, buffersize, nworkers)
     lexer = Lexer(io, nothing, '\n')
     parsing_ctx = ParsingContext()
     consume_ctx = ConsumeContext()
-    chunking_ctx = ChunkingContext(buffersize, nworkers, 0, nothing)
+    chunking_ctx = ChunkingContext(buffersize, nworkers)
     # ChunkedBase.jl requires 2 result buffers per worker task, we'd get an error otherwise
     result_buffers = [ResultBuffer(Int[]) for _ in 1:2nworkers]
-    # We need to fill the byte buffer and find the newlines in it before we hand
-    # the `consume_ctx` to the function
-    ChunkedBase.read_and_lex!(lexer, chunking_ctx)
+
     parse_file_parallel(lexer, parsing_ctx, consume_ctx, chunking_ctx, result_buffers)
     return nothing
 end
@@ -99,7 +96,7 @@ end
 Let's run it on some data:
 ```julia
 julia> io = IOBuffer((("x" ^ 4095) * "\n") ^ 64); # 256KiB
-julia> print_newlines(io, 64*1024, 4);
+julia> print_newlines(io, 64 * 1024, 4);
 # [ Info: Newlines in chunk (id:(1, 1)): [16384, 20480, 24576, 28672, 32768, 36864]
 # [ Info: Newlines in chunk (id:(1, 1)): [0, 4096, 8192, 12288, 16384]
 # [ Info: Newlines in chunk (id:(1, 1)): [36864, 40960, 45056, 49152, 53248, 57344]
@@ -117,6 +114,6 @@ julia> print_newlines(io, 64*1024, 4);
 # [ Info: Newlines in chunk (id:(2, 2)): [36864, 40960, 45056, 49152, 53248, 57344]
 # [ Info: Newlines in chunk (id:(2, 2)): [57344, 61440, 65536]
 ```
-Behind the scenes, `ChunkedBase.jl` was using two 64KiB buffers, finding newlines in them, and splitting the found newlines among 4 tasks. We can see that each of the buffers (identified by the first number in the `id` tuple) was refilled two times (the refill number is the second element of the tuple).
+Behind the scenes, `ChunkedBase.jl` was using two 64KiB buffers, finding newlines in them, and splitting the found newlines among 4 tasks. We can see that each of the buffers (identified by the first number in the `id` tuple) was refilled two times (the refill number is the second element of the tuple). 
 The way we set up our data, there should be one newline every 4KiB of input, so we'd expect 16 newlines per chunk, but we could see that there are 20 numbers reported per chunk -- each newline segment we send to the tasks starts with the last newline position from the previous segment, or 0 for the first segment, so we get 4 duplicated elements in this case.
 
