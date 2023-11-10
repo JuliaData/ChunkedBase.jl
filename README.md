@@ -31,7 +31,7 @@ function parse_file_parallel(
     parsing_ctx::AbstractParsingContext, # user-defined
     consume_ctx::AbstractConsumeContext, # user-defined
     chunking_ctx::ChunkingContext,
-    result_buffers::Vector{<:AbstractResultBuffer}, #user-defined
+    result_buffers::Vector{<:AbstractResultBuffer}, # user-defined
     ::Type{CT}=Tuple{} # ignore this for now
 ) where {CT}
 ```
@@ -40,7 +40,7 @@ Let's break it down:
 * `parsing_ctx` controls how we parse the data. It allows the user to dispatch on custom `populate_result_buffer!` overload and to forward configurations to it. `populate_result_buffer!` is where we take the records identified by the `lexer` and parse them into `result_buffers`.
 * `consume_ctx` controls how the parsed results are consumed (e.g. inserted into a database, appended to a `DataFrame`...). `consume_ctx` allows the user to dispatch on their `consume!` method and hold any state necessary for consumption. This happens immediately after `populate_result_buffer!`.
 * `chunking_ctx` controls how the work on individual chunks of data is scheduled. It contains buffers for input bytes and found newlines. Through this struct the user controls the size of the chunks and the number of spawned tasks that carry out the parsing and consuming. If there is enough data in the input, a secondary `chunking_ctx` is created internally to facilitate the double-buffering described above.
-* `result_buffers` controls in which format the results are stored. These result buffers hold results from `populate_result_buffer!` and are passed to `consume!`. This allows the user to have multiple result formats for the with `parsing_ctx` e.g. row oriented vs column oriented buffers.
+* `result_buffers` controls in which format the results are stored. These result buffers hold results from `populate_result_buffer!` and are passed to `consume!`. This allows the user to have multiple result formats for the same `parsing_ctx` e.g. row-oriented vs column-oriented buffers.
 
 There is also `parse_file_serial` which doesn't spawn any tasks and just calls `populate_result_buffer!` and `consume!` sequentially without double-buffering. This can be useful for debugging or for small files.
 
