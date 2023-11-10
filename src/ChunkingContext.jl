@@ -1,7 +1,7 @@
 # When splitting the work among multiple tasks, we aim for each task to have at least this
 # many bytes of input to work on (even if it means that some tasks will have nothing to process)
 # This is to avoid overhead from too many task switches.
-# TODO: make this configurable and find a good default (the current 16 KiB is a guess)
+# TODO(#10): make this configurable and find a good default (the current 16 KiB is a guess)
 const MIN_TASK_SIZE_IN_BYTES = 16 * 1024
 
 _comment_to_bytes(x::AbstractString) = Vector{UInt8}(x)

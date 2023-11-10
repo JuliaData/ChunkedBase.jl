@@ -77,7 +77,7 @@ function task_done!(::AbstractConsumeContext, chunking_ctx::ChunkingContext)
     return nothing
 end
 
-# TODO: If we want to support schema inference, this would be a good place to sync a `Vector{TaskResultBuffer}` belonging to current `parsing_ctx`
+# TODO(#11): If we want to support schema inference, this would be a good place to sync a `Vector{TaskResultBuffer}` belonging to current `parsing_ctx`
 """
     sync_tasks(consume_ctx::AbstractConsumeContext, chunking_ctx::ChunkingContext)
 

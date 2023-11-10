@@ -38,10 +38,7 @@ _input_to_io(input::IO, use_mmap::Bool) = false, input
 function _input_to_io(input::String, use_mmap::Bool)
     ios = open(input, "r")
     if !eof(ios) && peek(ios, UInt16) == 0x8b1f
-        # TODO: GzipDecompressorStream doesn't respect MmapStream reaching EOF for some reason
-        # io = CodecZlibNG.GzipDecompressorStream(use_mmap ? MmapStream(ios) : ios)
-        use_mmap && @warn "`use_mmap=true` is currently unsupported when reading gzipped files, using file io."
-        io = CodecZlibNG.GzipDecompressorStream(ios)
+        io = CodecZlibNG.GzipDecompressorStream(use_mmap ? MmapStream(ios) : ios)
     elseif use_mmap
         io = MmapStream(ios)
     else

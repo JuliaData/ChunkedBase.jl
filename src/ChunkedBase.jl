@@ -56,7 +56,7 @@ export parse_file_serial, parse_file_parallel, populate_result_buffer!
 # Before parsing, call `clear_traces!` to reset the traces, then call
 #   include("_tracing.jl") # once
 #   plot_traces() # to plot the traces
-# TODO: Port this over to be macro-based, with plotting being provided by a package extension
+# TODO(#9): Port this over to be macro-based, with plotting being provided by a package extension
 
 # TRACING # const PARSER_TASKS_TIMES = [UInt[]]
 # TRACING # const CONSUMER_TASKS_TIMES = [UInt[]]
