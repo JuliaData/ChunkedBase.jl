@@ -97,7 +97,7 @@ end
 
 """
     parse_file_parallel(
-        lexer::NewlineLexers.Lexer,
+        lexer::Lexer,
         parsing_ctx::AbstractParsingContext,
         consume_ctx::AbstractConsumeContext,
         chunking_ctx::ChunkingContext,

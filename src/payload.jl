@@ -112,10 +112,10 @@ function _reorder!(queue::Channel{T}, waiting_room::Vector{T}, payload::T, expec
     row = payload.row_num
     if row == expected_row
         _reenqueue_ordered!(queue, waiting_room, payload)
-        return false # needs no reordering
+        return false # we don't need to keep searching, we found the next payload in order
     end
     insertsorted!(waiting_room, payload, x->x.row_num)
-    return true # needs reordering
+    return true # we need to keep searching the next payload in order
 end
 
 Base.put!(o::PayloadOrderer{B,C}, x::ParsedPayload{B,C}) where {B,C} = put!(o.queue, x)
