@@ -1,3 +1,5 @@
+# If we don't find any `\n` but we do find a `\r`, we assume the file uses `\r` as a newline,
+# '\n' otherwise.
 function _detect_newline(buf, pos, len)
     len == 0 && return UInt8('\n') # empty file
     @assert 1 <= pos <= len <= length(buf)
@@ -18,6 +20,10 @@ function _hasBOM(bytes::Vector{UInt8})
     return @inbounds bytes[1] == 0xef && bytes[2] == 0xbb && bytes[3] == 0xbf
 end
 
+# Either we were looking for `\n` as a newline char and then an empty row has
+# two newline positions next to each other or there is a single byte between them
+# and it's `\r`. Or we were looking for `\r` in which case we only consider two
+# neighboring `\r` as an empty row.
 function _isemptyrow(prev_nl, next_nl, bytes)
     return prev_nl + 1 == next_nl || (prev_nl + 2 == next_nl && @inbounds(bytes[prev_nl+1]) == UInt8('\r'))
 end
@@ -32,10 +38,7 @@ _input_to_io(input::IO, use_mmap::Bool) = false, input
 function _input_to_io(input::String, use_mmap::Bool)
     ios = open(input, "r")
     if !eof(ios) && peek(ios, UInt16) == 0x8b1f
-        # TODO: GzipDecompressorStream doesn't respect MmapStream reaching EOF for some reason
-        # io = CodecZlibNG.GzipDecompressorStream(use_mmap ? MmapStream(ios) : ios)
-        use_mmap && @warn "`use_mmap=true` is currently unsupported when reading gzipped files, using file io."
-        io = CodecZlibNG.GzipDecompressorStream(ios)
+        io = CodecZlibNG.GzipDecompressorStream(use_mmap ? MmapStream(ios) : ios)
     elseif use_mmap
         io = MmapStream(ios)
     else
@@ -48,6 +51,7 @@ end
 # limit_eols!
 #
 
+# We can set a limit in our `chunking_ctx` to limit the number of rows we parse
 function limit_eols!(chunking_ctx::ChunkingContext, row_num::Int)
     _limit = chunking_ctx.limit
     _limit == 0 && return false
@@ -71,9 +75,17 @@ function _startswith(s::AbstractVector{UInt8}, soff::Integer, prefix::AbstractVe
     return true
 end
 _startswith(s::AbstractVector{UInt8}, prefix::AbstractVector{UInt8}) = _startswith(s, 0, prefix)
+# nothing for a comment / prefix means we are not skipping commented rows
 _startswith(s, soff, prefix::Nothing) = false
 _startswith(s, prefix::Nothing) = false
 
+# Skip rows at the beginning of the file, optionally skipping empty rows as well.
+# If the inputs has fewer lines than `rows_to_skip`, we skip the whole input.
+# If we exhaust the buffer during skipping, we refill it and continue skipping.
+# If we specify comment in in `chunking_ctx`, we skip commented rows as well.
+# If we specify `ignoreemptyrows=true`, we skip empty rows as well.
+# If we'are skipping empty rows and/or comments, we might skip more rows than `rows_to_skip`,
+# we'll continue skipping until we find a non-empty, non-commented row.
 function skip_rows_init!(lexer, chunking_ctx, rows_to_skip, ignoreemptyrows=false)
     input_is_empty = length(chunking_ctx.newline_positions) == 1
     input_is_empty && (return 0)
@@ -141,6 +153,7 @@ MmapStream(ios::IO) = MmapStream(ios, Mmap.mmap(ios, grow=false, shared=false), 
 Base.close(m::MmapStream) = close(m.ios)
 Base.eof(m::MmapStream) = m.pos > length(m.x)
 function readbytesall!(io::MmapStream, buf, n::Int)
+    # `io` and `buf` are rooted in ChunkingContext, so we don't need to preserve them
     bytes_to_read = min(bytesavailable(io), n)
     unsafe_copyto!(pointer(buf), pointer(io.x) + io.pos - 1, bytes_to_read)
     io.pos += bytes_to_read

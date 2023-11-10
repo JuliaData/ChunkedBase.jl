@@ -1,15 +1,16 @@
 using GLMakie, ChunkedBase
 
 function plot_traces()
-    t1 = copy(ChunkedBase.T1)
-    t2 = copy(ChunkedBase.T2)
-    io_task = copy(ChunkedBase.IO_TASK_TIMES)
-    lexer_task = copy(ChunkedBase.LEXER_TASK_TIMES)
-    parser_tasks = filter(x->length(x)>0, ChunkedBase.PARSER_TASKS_TIMES)
-    consume_tasks = filter(x->length(x)>0, ChunkedBase.CONSUMER_TASKS_TIMES)
+    t1 = copy(ChunkedBase.T1) # total parse/consume time for the first byte buffer by all workers
+    t2 = copy(ChunkedBase.T2) # total parse/consume time for the second byte buffer by all workers
+    io_task = copy(ChunkedBase.IO_TASK_TIMES) # time spent in IO
+    lexer_task = copy(ChunkedBase.LEXER_TASK_TIMES) # time spent in lexer
+    parser_tasks = filter(x->length(x)>0, ChunkedBase.PARSER_TASKS_TIMES) # individual parse/consume times for each worker
+    consume_tasks = filter(x->length(x)>0, ChunkedBase.CONSUMER_TASKS_TIMES) # optional extensions for consumes that spawn tasks
 
     start = Int(mapreduce(first, min, parser_tasks, init=min(io_task[1], lexer_task[1])))
 
+    # convert to seconds, subtract start time
     lexer_timing = map(x->(x - start) / (1e9), lexer_task)
     io_timing = map(x->(x - start) / (1e9), io_task)
     pa_timings = map.(x->(x - start) / (1e9), parser_tasks)

@@ -1,3 +1,18 @@
+"""
+    parse_file_serial(
+        lexer::Lexer,
+        parsing_ctx::AbstractParsingContext,
+        consume_ctx::AbstractConsumeContext,
+        chunking_ctx::ChunkingContext,
+        result_buf::AbstractResultBuffer,
+        ::Type{CT}=Tuple{},
+    ) where {CT}
+
+The serial analog of `parse_file_parallel` which doesn't spawn any tasks,
+useful for debugging and processing very small files.
+
+See also [`populate_result_buffer!`](@ref), [`consume!`](@ref), [`parse_file_parallel`](@ref).
+"""
 function parse_file_serial(
     lexer::Lexer,
     parsing_ctx::AbstractParsingContext,
@@ -6,6 +21,10 @@ function parse_file_serial(
     result_buf::AbstractResultBuffer,
     ::Type{CT}=Tuple{},
 ) where {CT}
+    # In case we were given an uninitialized chunking_ctx, we need to fill it first
+    if chunking_ctx.buffer_refills[] == 0 && !lexer.done
+        read_and_lex!(lexer, chunking_ctx)
+    end
     row_num = 1
     _comment = chunking_ctx.comment
     try

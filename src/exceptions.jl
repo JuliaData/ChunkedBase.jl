@@ -1,8 +1,8 @@
 abstract type FatalLexingError <: Exception end
 Base.showerror(io::IO, e::FatalLexingError) = print(io, e.msg)
 
-# TODO: Add some data to help debug the problematic file, like the first row with an escape character
-#       and/or the quote character.
+# TODO(#12): Add some data to help debug the problematic file, like the first row with an escape character
+# and/or the quote character.
 struct NoValidRowsInBufferError <: FatalLexingError
     msg::String
     buffersize::Int

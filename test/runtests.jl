@@ -459,6 +459,7 @@ end
 @testset "initial_lex!" begin
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
     ctx = ChunkingContext(4, 1, 0, nothing)
+    ctx.bytes .= false
     @assert lexer.done == false
     @assert ctx.newline_positions == [0]
     ChunkedBase.initial_lex!(lexer, ctx, 0)
@@ -466,6 +467,7 @@ end
 
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
     ctx = ChunkingContext(4, 1, 0, nothing)
+    ctx.bytes .= false
     @assert lexer.done == false
     @assert ctx.newline_positions == [0]
     seekend(lexer.io)
@@ -489,6 +491,7 @@ end
 
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
     ctx = ChunkingContext(4, 1, 0, nothing)
+    ctx.bytes .= false
     ctx.newline_positions.elements[1] = 1
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 0)
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 5)
@@ -496,6 +499,7 @@ end
     lexer = NewlineLexers.Lexer(IOBuffer("1"), nothing, UInt8('\n'))
     lexer.done = true
     ctx = ChunkingContext(4, 1, 0, nothing)
+    ctx.bytes .= false
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 0)
     @test_throws AssertionError ChunkedBase.initial_lex!(lexer, ctx, 5)
 
