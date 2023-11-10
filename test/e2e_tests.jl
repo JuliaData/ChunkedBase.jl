@@ -35,17 +35,17 @@ ChunkedBase.task_done!(::TestConsumeContext, ::ChunkingContext) = nothing
 
 ### TestThrowingContext ####################################################################
 struct TestThrowingContext <: AbstractConsumeContext
-    tasks::Vector{Task}
-    conds::Vector{TaskCounter}
+    tasks::Base.IdSet{Task}
+    conds::Base.IdSet{TaskCounter}
     throw_row::Int
 end
-TestThrowingContext(throw_row) = TestThrowingContext(Task[], ChunkedBase.TaskCounter[], throw_row)
+TestThrowingContext(throw_row) = TestThrowingContext(Base.IdSet{Task}(), Base.IdSet{TaskCounter}(), throw_row)
 
 function ChunkedBase.consume!(ctx::TestThrowingContext, payload::ParsedPayload)
     t = current_task()
     c = payload.chunking_ctx.counter
-    c in ctx.conds || push!(ctx.conds, c)
-    t in ctx.tasks || push!(ctx.tasks, t)
+    push!(ctx.conds, c)
+    push!(ctx.tasks, t)
     payload.row_num >= ctx.throw_row && error("These contexts are for throwing, and that's all what they do")
     sleep(0.01) # trying to get the task off a fast path to claim everything from the parsing queue
     return nothing
@@ -328,8 +328,8 @@ end
                 )
             end
             @assert !isempty(throw_ctx.tasks)
-            @test throw_ctx.tasks[1] === current_task()
-            @test throw_ctx.conds[1].exception isa ErrorException
+            @test only(throw_ctx.tasks) === current_task()
+            @test only(throw_ctx.conds).exception isa ErrorException
         end
 
         @testset "parallel" begin
@@ -348,8 +348,8 @@ end
             sleep(0.2)
             @test length(throw_ctx.tasks) == nworkers
             @test all(istaskdone, throw_ctx.tasks)
-            @test throw_ctx.conds[1].exception isa CapturedException
-            @test throw_ctx.conds[1].exception.ex.msg == "These contexts are for throwing, and that's all what they do"
+            @test first(throw_ctx.conds).exception isa CapturedException
+            @test first(throw_ctx.conds).exception.ex.msg == "These contexts are for throwing, and that's all what they do"
         end
     end
 
@@ -366,10 +366,9 @@ end
                 )
             end
             @assert !isempty(throw_ctx.tasks)
-            @test throw_ctx.tasks[1] === current_task()
-            @test throw_ctx.conds[1].exception isa ErrorException
+            @test only(throw_ctx.tasks) === current_task()
+            @test only(throw_ctx.conds).exception isa ErrorException
         end
-
         @testset "parallel" begin
             throw_ctx = TestThrowingContext(typemax(Int)) # Only capture tasks, let IO do the throwing
             nworkers = min(3, Threads.nthreads())
@@ -385,10 +384,13 @@ end
             sleep(0.2)
             @test length(throw_ctx.tasks) == min(3, Threads.nthreads())
             @test all(istaskdone, throw_ctx.tasks)
-            @test throw_ctx.conds[1].exception isa CapturedException
-            @test throw_ctx.conds[1].exception.ex.task.result.msg == "That should be enough data for everyone"
-            @test throw_ctx.conds[2].exception isa CapturedException
-            @test throw_ctx.conds[2].exception.ex.task.result.msg == "That should be enough data for everyone"
+            conds = collect(throw_ctx.conds)
+            cond = pop!(conds)
+            @test cond.exception isa CapturedException
+            @test cond.exception.ex.task.result.msg == "That should be enough data for everyone"
+            cond = pop!(conds)
+            @test cond.exception isa CapturedException
+            @test cond.exception.ex.task.result.msg == "That should be enough data for everyone"
         end
     end
 end
